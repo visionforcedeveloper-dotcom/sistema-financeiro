@@ -1,13 +1,47 @@
 import { useState, useMemo } from 'react'
 import { useData } from '../context/DataContext'
-import { formatCurrency, formatDate, todayISO, getCurrentMonth, isSameMonth } from '../lib/utils'
+import { formatCurrency, formatDate, todayISO, getCurrentMonth, isSameMonth, cn } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
-import { TrendingDown, Pencil, Trash2, Plus } from 'lucide-react'
+import { TrendingDown, Pencil, Trash2, Plus, AlertTriangle, Clock } from 'lucide-react'
 import type { Transaction, TransactionStatus } from '../types'
+import { differenceInDays, parseISO } from 'date-fns'
 
 const paymentMethods = ['Dinheiro', 'Pix', 'Débito', 'Crédito', 'Boleto', 'Transferência']
+
+// Calcula quantos dias faltam para o prazo de encerramento
+function daysUntilDue(dueDate: string): number {
+  return differenceInDays(parseISO(dueDate), new Date())
+}
+
+function DueDateBadge({ dueDate }: { dueDate: string | null }) {
+  if (!dueDate) return null
+  const days = daysUntilDue(dueDate)
+  if (days < 0)
+    return (
+      <span className="badge-danger text-xs flex items-center gap-1">
+        <AlertTriangle size={11} /> Prazo encerrado há {Math.abs(days)}d
+      </span>
+    )
+  if (days === 0)
+    return (
+      <span className="badge-danger text-xs flex items-center gap-1">
+        <AlertTriangle size={11} /> Encerra hoje
+      </span>
+    )
+  if (days <= 3)
+    return (
+      <span className="badge-warning text-xs flex items-center gap-1">
+        <Clock size={11} /> Encerra em {days}d
+      </span>
+    )
+  return (
+    <span className="badge-info text-xs flex items-center gap-1">
+      <Clock size={11} /> Encerra {formatDate(dueDate)}
+    </span>
+  )
+}
 
 export default function Expenses() {
   const {
@@ -19,7 +53,6 @@ export default function Expenses() {
     updateTransaction,
     deleteTransaction,
     getCategoryName,
-    loading,
   } = useData()
 
   const [filterCategory, setFilterCategory] = useState('')
@@ -42,6 +75,11 @@ export default function Expenses() {
   const pending = expenseTransactions.filter((t) => t.status === 'pending').length
   const overdue = expenseTransactions.filter((t) => t.status === 'overdue').length
 
+  // Prazo de encerramento próximo (dentro de 3 dias ou vencido)
+  const nearDeadline = expenseTransactions.filter(
+    (t) => t.due_date && t.status !== 'paid' && daysUntilDue(t.due_date) <= 3,
+  ).length
+
   const statusBadge = (status: TransactionStatus) => {
     if (status === 'paid') return <span className="badge-success">Pago</span>
     if (status === 'pending') return <span className="badge-warning">Pendente</span>
@@ -58,6 +96,16 @@ export default function Expenses() {
           <Plus size={16} /> Nova despesa
         </button>
       </div>
+
+      {/* Alerta de prazos próximos */}
+      {nearDeadline > 0 && (
+        <div className="flex items-center gap-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl px-4 py-3">
+          <AlertTriangle size={18} className="text-yellow-600 dark:text-yellow-400 shrink-0" />
+          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+            <span className="font-semibold">{nearDeadline} despesa{nearDeadline > 1 ? 's' : ''}</span> com prazo de encerramento próximo ou vencido.
+          </p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -96,7 +144,11 @@ export default function Expenses() {
             icon={<TrendingDown size={32} />}
             title="Nenhuma despesa"
             message="Adicione suas despesas para acompanhar seus gastos."
-            action={<button onClick={() => setAddOpen(true)} className="btn-danger"><Plus size={16} /> Nova despesa</button>}
+            action={
+              <button onClick={() => setAddOpen(true)} className="btn-danger">
+                <Plus size={16} /> Nova despesa
+              </button>
+            }
           />
         </div>
       ) : (
@@ -108,45 +160,80 @@ export default function Expenses() {
                 <th className="text-left font-medium px-4 py-3 hidden md:table-cell">Categoria</th>
                 <th className="text-right font-medium px-4 py-3">Valor</th>
                 <th className="text-left font-medium px-4 py-3 hidden sm:table-cell">Vencimento</th>
+                <th className="text-left font-medium px-4 py-3 hidden lg:table-cell">Prazo</th>
                 <th className="text-left font-medium px-4 py-3 hidden md:table-cell">Pagamento</th>
                 <th className="text-center font-medium px-4 py-3">Status</th>
                 <th className="text-right font-medium px-4 py-3">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {expenseTransactions.map((t) => (
-                <tr key={t.id} className="table-row">
-                  <td className="px-4 py-3 font-medium">
-                    {t.description}
-                    {t.installment_total && (
-                      <span className="text-xs text-gray-400 ml-1">({t.installment_number}/{t.installment_total})</span>
+              {expenseTransactions.map((t) => {
+                const dueSoon = t.due_date && t.status !== 'paid' && daysUntilDue(t.due_date) <= 3
+                return (
+                  <tr
+                    key={t.id}
+                    className={cn(
+                      'table-row',
+                      dueSoon && 'bg-yellow-50/50 dark:bg-yellow-900/10',
                     )}
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell text-gray-600 dark:text-gray-400">
-                    {getCategoryName(t.category_id)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-red-600 dark:text-red-400">
-                    -{formatCurrency(t.amount)}
-                  </td>
-                  <td className="px-4 py-3 hidden sm:table-cell text-gray-600 dark:text-gray-400">
-                    {formatDate(t.date)}
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell text-gray-600 dark:text-gray-400">
-                    {t.payment_date ? formatDate(t.payment_date) : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-center">{statusBadge(t.status)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => setEditTransaction(t)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500" title="Editar">
-                        <Pencil size={16} />
-                      </button>
-                      <button onClick={() => setDeleteId(t.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500" title="Excluir">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  >
+                    <td className="px-4 py-3 font-medium">
+                      <div>
+                        {t.description}
+                        {t.installment_total && (
+                          <span className="text-xs text-gray-400 ml-1">
+                            ({t.installment_number}/{t.installment_total})
+                          </span>
+                        )}
+                        {/* Prazo badge visível no mobile */}
+                        {t.due_date && (
+                          <div className="mt-1 lg:hidden">
+                            <DueDateBadge dueDate={t.due_date} />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell text-gray-600 dark:text-gray-400">
+                      {getCategoryName(t.category_id)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-red-600 dark:text-red-400">
+                      -{formatCurrency(t.amount)}
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell text-gray-600 dark:text-gray-400">
+                      {formatDate(t.date)}
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      {t.due_date ? (
+                        <DueDateBadge dueDate={t.due_date} />
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell text-gray-600 dark:text-gray-400">
+                      {t.payment_date ? formatDate(t.payment_date) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-center">{statusBadge(t.status)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setEditTransaction(t)}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+                          title="Editar"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteId(t.id)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"
+                          title="Excluir"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -206,6 +293,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
   const [description, setDescription] = useState(transaction?.description || '')
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
   const [date, setDate] = useState(transaction?.date || todayISO())
+  const [dueDate, setDueDate] = useState(transaction?.due_date || '')
   const [categoryId, setCategoryId] = useState(transaction?.category_id || '')
   const [accountId, setAccountId] = useState(transaction?.account_id || '')
   const [creditCardId, setCreditCardId] = useState(transaction?.credit_card_id || '')
@@ -222,6 +310,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
         description,
         amount: parseFloat(amount),
         date,
+        due_date: dueDate || null,
         category_id: categoryId || null,
         account_id: accountId || null,
         credit_card_id: creditCardId || null,
@@ -237,23 +326,87 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
     }
   }
 
+  // Feedback visual do prazo
+  const dueDays = dueDate ? daysUntilDue(dueDate) : null
+
   return (
     <Modal open={true} onClose={onClose} title={transaction ? 'Editar Despesa' : 'Nova Despesa'} size="md">
       <div className="space-y-4">
         <div>
           <label className="label">Descrição</label>
-          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex: Mercado" className="input" autoFocus />
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Ex: Mercado"
+            className="input"
+            autoFocus
+          />
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Valor (R$)</label>
-            <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" className="input" />
+            <input
+              type="number"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0,00"
+              className="input"
+            />
           </div>
           <div>
-            <label className="label">Vencimento</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
+            <label className="label">Data de vencimento</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="input"
+            />
           </div>
         </div>
+
+        {/* Prazo de encerramento */}
+        <div>
+          <label className="label">
+            Prazo de encerramento
+            <span className="text-xs text-gray-400 dark:text-gray-500 font-normal ml-1">(opcional)</span>
+          </label>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className={cn(
+              'input',
+              dueDate && dueDays !== null && dueDays < 0 && 'border-red-400 dark:border-red-600 focus:ring-red-500',
+              dueDate && dueDays !== null && dueDays >= 0 && dueDays <= 3 && 'border-yellow-400 dark:border-yellow-600 focus:ring-yellow-500',
+            )}
+          />
+          {dueDate && dueDays !== null && (
+            <p className={cn(
+              'text-xs mt-1.5 flex items-center gap-1',
+              dueDays < 0 ? 'text-red-600 dark:text-red-400'
+                : dueDays <= 3 ? 'text-yellow-600 dark:text-yellow-400'
+                : 'text-gray-500 dark:text-gray-400',
+            )}>
+              {dueDays < 0 && <><AlertTriangle size={12} /> Prazo encerrado há {Math.abs(dueDays)} dia{Math.abs(dueDays) !== 1 ? 's' : ''}</>}
+              {dueDays === 0 && <><AlertTriangle size={12} /> O prazo encerra hoje</>}
+              {dueDays > 0 && dueDays <= 3 && <><Clock size={12} /> Encerra em {dueDays} dia{dueDays !== 1 ? 's' : ''}</>}
+              {dueDays > 3 && <><Clock size={12} /> Encerra em {dueDays} dias</>}
+            </p>
+          )}
+          {dueDate && (
+            <button
+              type="button"
+              onClick={() => setDueDate('')}
+              className="text-xs text-gray-400 hover:text-red-500 mt-1 transition-colors"
+            >
+              Remover prazo
+            </button>
+          )}
+        </div>
+
         <div>
           <label className="label">Categoria</label>
           <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="input">
@@ -263,6 +416,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             ))}
           </select>
         </div>
+
         <div>
           <label className="label">Conta</label>
           <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="input">
@@ -272,6 +426,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             ))}
           </select>
         </div>
+
         <div>
           <label className="label">Cartão de crédito</label>
           <select value={creditCardId} onChange={(e) => setCreditCardId(e.target.value)} className="input">
@@ -281,6 +436,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             ))}
           </select>
         </div>
+
         <div>
           <label className="label">Forma de pagamento</label>
           <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="input">
@@ -290,6 +446,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             ))}
           </select>
         </div>
+
         <div>
           <label className="label">Status</label>
           <select value={status} onChange={(e) => setStatus(e.target.value as TransactionStatus)} className="input">
@@ -297,13 +454,24 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             <option value="paid">Pago</option>
           </select>
         </div>
+
         <div>
           <label className="label">Observação (opcional)</label>
-          <textarea value={observation} onChange={(e) => setObservation(e.target.value)} className="input resize-none" rows={2} />
+          <textarea
+            value={observation}
+            onChange={(e) => setObservation(e.target.value)}
+            className="input resize-none"
+            rows={2}
+          />
         </div>
+
         <div className="flex gap-2">
           <button onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
-          <button onClick={handleSave} disabled={saving || !description || !amount} className="btn-danger flex-1">
+          <button
+            onClick={handleSave}
+            disabled={saving || !description || !amount}
+            className="btn-danger flex-1"
+          >
             {saving ? 'Salvando...' : 'Salvar'}
           </button>
         </div>

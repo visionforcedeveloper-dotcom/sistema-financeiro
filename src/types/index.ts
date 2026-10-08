@@ -28,7 +28,8 @@ export interface Transaction {
   id: string
   description: string
   amount: number
-  date: string // due date or transaction date
+  date: string // data de vencimento ou data da transação
+  due_date: string | null // prazo de encerramento (deadline)
   type: TransactionType
   category_id: string | null
   account_id: string | null
