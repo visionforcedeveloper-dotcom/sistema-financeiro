@@ -17,6 +17,7 @@ const Goals        = lazy(() => import('./pages/Goals'))
 const Calendar     = lazy(() => import('./pages/Calendar'))
 const Reports      = lazy(() => import('./pages/Reports'))
 const Settings     = lazy(() => import('./pages/Settings'))
+const Forecast     = lazy(() => import('./pages/Forecast'))
 
 function LoadingFallback() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="/goals"        element={<Goals />} />
               <Route path="/calendar"     element={<Calendar />} />
               <Route path="/reports"      element={<Reports />} />
+              <Route path="/forecast"     element={<Forecast />} />
               <Route path="/settings"     element={<Settings />} />
             </Routes>
           </Suspense>

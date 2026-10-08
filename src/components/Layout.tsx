@@ -18,7 +18,7 @@ import {
   Menu,
   X,
   Plus,
-  Search,
+  CalendarClock,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { cn } from '../lib/utils'
@@ -34,6 +34,7 @@ const navItems = [
   { path: '/budget', label: 'Orçamento', icon: PieChart },
   { path: '/goals', label: 'Metas', icon: Target },
   { path: '/calendar', label: 'Calendário', icon: Calendar },
+  { path: '/forecast', label: 'Previsão', icon: CalendarClock },
   { path: '/reports', label: 'Relatórios', icon: FileBarChart },
   { path: '/settings', label: 'Configurações', icon: Settings },
 ]
