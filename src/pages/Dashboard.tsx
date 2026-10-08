@@ -83,6 +83,7 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
       icon: TrendingDown,
       color: 'text-red-600 dark:text-red-400',
       bg: 'bg-red-50 dark:bg-red-900/20',
+      hint: 'Todas as despesas do mês',
     },
     {
       label: 'Contas a Pagar',
@@ -169,8 +170,13 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
             {statCards.map((card) => (
               <div key={card.label} className="stat-card">
                 <div className="flex items-center justify-between">
-                  <span className="stat-label">{card.label}</span>
-                  <div className={`w-9 h-9 rounded-xl ${card.bg} flex items-center justify-center ${card.color}`}>
+                  <div>
+                    <span className="stat-label">{card.label}</span>
+                    {'hint' in card && card.hint && (
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{card.hint}</p>
+                    )}
+                  </div>
+                  <div className={`w-9 h-9 rounded-xl ${card.bg} flex items-center justify-center ${card.color} shrink-0`}>
                     <card.icon size={18} />
                   </div>
                 </div>

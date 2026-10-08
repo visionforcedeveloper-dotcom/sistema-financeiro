@@ -222,16 +222,21 @@ export default function Reports() {
         <div className="stat-card">
           <span className="stat-label">Receitas</span>
           <span className="stat-value text-green-600 dark:text-green-400">{formatCurrency(totalIncome)}</span>
+          <span className="text-xs text-gray-400">{income.filter(t => t.status === 'paid').length} recebidas</span>
         </div>
         <div className="stat-card">
-          <span className="stat-label">Despesas</span>
+          <span className="stat-label">Total de Despesas</span>
           <span className="stat-value text-red-600 dark:text-red-400">{formatCurrency(totalExpense)}</span>
+          <span className="text-xs text-gray-400">
+            {formatCurrency(paidAmount)} pagos · {formatCurrency(pendingAmount)} pendentes
+          </span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Saldo</span>
           <span className={`stat-value ${balance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
             {formatCurrency(balance)}
           </span>
+          <span className="text-xs text-gray-400">Receitas − Total despesas</span>
         </div>
       </div>
 
@@ -371,20 +376,43 @@ export default function Reports() {
             <div className="card">
               <h3 className="font-semibold text-base mb-4">Contas Pagas x Pendentes</h3>
               <div className="space-y-3">
+                {/* Total geral */}
+                <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total de despesas</p>
+                    <p className="text-xs text-gray-500">{expenses.length} lançamento{expenses.length !== 1 ? 's' : ''}</p>
+                  </div>
+                  <span className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(totalExpense)}</span>
+                </div>
                 <div className="flex justify-between items-center bg-green-50 dark:bg-green-900/20 rounded-xl p-3">
                   <div>
                     <p className="text-sm font-medium text-green-700 dark:text-green-300">Pagas</p>
-                    <p className="text-xs text-green-600 dark:text-green-400">{paidCount} contas</p>
+                    <p className="text-xs text-green-600 dark:text-green-400">{paidCount} conta{paidCount !== 1 ? 's' : ''}</p>
                   </div>
                   <span className="text-lg font-bold text-green-700 dark:text-green-300">{formatCurrency(paidAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-3">
                   <div>
-                    <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">Pendentes</p>
-                    <p className="text-xs text-yellow-600 dark:text-yellow-400">{pendingCount} contas</p>
+                    <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">Pendentes / Vencidas</p>
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400">{pendingCount} conta{pendingCount !== 1 ? 's' : ''}</p>
                   </div>
                   <span className="text-lg font-bold text-yellow-700 dark:text-yellow-300">{formatCurrency(pendingAmount)}</span>
                 </div>
+                {/* Barra de progresso pago/total */}
+                {totalExpense > 0 && (
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>{((paidAmount / totalExpense) * 100).toFixed(0)}% pago</span>
+                      <span>{((pendingAmount / totalExpense) * 100).toFixed(0)}% pendente</span>
+                    </div>
+                    <div className="h-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-green-500 rounded-full transition-all"
+                        style={{ width: `${(paidAmount / totalExpense) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

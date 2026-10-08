@@ -567,8 +567,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const monthIncome = transactions
       .filter((t) => t.type === 'income' && isSameMonth(t.date, month, year) && t.status === 'paid')
       .reduce((s, t) => s + t.amount, 0)
+    // Total do mês = todas as despesas (pagas + pendentes + vencidas)
     const monthExpense = transactions
-      .filter((t) => t.type === 'expense' && isSameMonth(t.date, month, year) && t.status === 'paid')
+      .filter((t) => t.type === 'expense' && isSameMonth(t.date, month, year))
       .reduce((s, t) => s + t.amount, 0)
     const billsToPay = transactions
       .filter((t) => t.type === 'expense' && t.status === 'pending')
@@ -594,8 +595,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const income = transactions
         .filter((t) => t.type === 'income' && isSameMonth(t.date, m, y) && t.status === 'paid')
         .reduce((s, t) => s + t.amount, 0)
+      // Total de despesas do mês (todas, independente do status)
       const expense = transactions
-        .filter((t) => t.type === 'expense' && isSameMonth(t.date, m, y) && t.status === 'paid')
+        .filter((t) => t.type === 'expense' && isSameMonth(t.date, m, y))
         .reduce((s, t) => s + t.amount, 0)
       return { month: getMonthNameShort(m), income, expense }
     })
@@ -607,7 +609,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const y = year ?? getCurrentMonth().year
     const spending: Record<string, { amount: number; color: string }> = {}
     transactions
-      .filter((t) => t.type === 'expense' && isSameMonth(t.date, m, y) && t.status === 'paid')
+      .filter((t) => t.type === 'expense' && isSameMonth(t.date, m, y))
       .forEach((t) => {
         const cat = categories.find((c) => c.id === t.category_id)
         const name = cat?.name ?? 'Outros'
