@@ -9,7 +9,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import {
   TrendingDown, Pencil, Trash2, Plus,
-  Repeat, AlertTriangle, Clock, Settings2,
+  Repeat, AlertTriangle, Clock,
 } from 'lucide-react'
 import type { Transaction, TransactionStatus, RecurringPeriod } from '../types'
 import { differenceInDays, parseISO } from 'date-fns'
@@ -23,12 +23,9 @@ function daysUntilDue(dueDate: string): number {
 function DueDateBadge({ dueDate }: { dueDate: string | null }) {
   if (!dueDate) return null
   const days = daysUntilDue(dueDate)
-  if (days < 0)
-    return <span className="badge-danger text-xs flex items-center gap-1"><AlertTriangle size={11} /> Prazo encerrado há {Math.abs(days)}d</span>
-  if (days === 0)
-    return <span className="badge-danger text-xs flex items-center gap-1"><AlertTriangle size={11} /> Encerra hoje</span>
-  if (days <= 3)
-    return <span className="badge-warning text-xs flex items-center gap-1"><Clock size={11} /> Encerra em {days}d</span>
+  if (days < 0) return <span className="badge-danger text-xs flex items-center gap-1"><AlertTriangle size={11} /> Prazo encerrado há {Math.abs(days)}d</span>
+  if (days === 0) return <span className="badge-danger text-xs flex items-center gap-1"><AlertTriangle size={11} /> Encerra hoje</span>
+  if (days <= 3) return <span className="badge-warning text-xs flex items-center gap-1"><Clock size={11} /> Encerra em {days}d</span>
   return <span className="badge-info text-xs flex items-center gap-1"><Clock size={11} /> Encerra {formatDate(dueDate)}</span>
 }
 
@@ -38,13 +35,10 @@ export default function Expenses() {
     categories,
     accounts,
     creditCards,
-    recurringTransactions,
     addTransaction,
     updateTransaction,
     deleteTransaction,
     addRecurring,
-    updateRecurring,
-    deleteRecurring,
     getCategoryName,
   } = useData()
 
@@ -52,12 +46,6 @@ export default function Expenses() {
   const [addOpen, setAddOpen] = useState(false)
   const [editTransaction, setEditTransaction] = useState<Transaction | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [recurringModalOpen, setRecurringModalOpen] = useState(false)
-  const [editRecurring, setEditRecurring] = useState<typeof recurringTransactions[0] | null>(null)
-  const [deleteRecurringId, setDeleteRecurringId] = useState<string | null>(null)
-
-  // Apenas recorrentes de despesa
-  const recurringExpenses = recurringTransactions.filter((r) => r.type === 'expense')
 
   const expenseTransactions = useMemo(() => {
     return transactions
@@ -68,7 +56,7 @@ export default function Expenses() {
 
   const { month, year } = getCurrentMonth()
   const totalExpenses = expenseTransactions
-    .filter((t) => isSameMonth(t.date, month, year) && t.status === 'paid')
+    .filter((t) => isSameMonth(t.date, month, year))
     .reduce((sum, t) => sum + t.amount, 0)
   const paid = expenseTransactions.filter((t) => t.status === 'paid').length
   const pending = expenseTransactions.filter((t) => t.status === 'pending').length
@@ -76,8 +64,6 @@ export default function Expenses() {
   const nearDeadline = expenseTransactions.filter(
     (t) => t.due_date && t.status !== 'paid' && daysUntilDue(t.due_date) <= 3,
   ).length
-
-  const totalRecurring = recurringExpenses.reduce((s, r) => s + r.amount, 0)
 
   const statusBadge = (status: TransactionStatus) => {
     if (status === 'paid') return <span className="badge-success">Pago</span>
@@ -90,20 +76,11 @@ export default function Expenses() {
   return (
     <div className="space-y-5 max-w-7xl mx-auto py-2 lg:py-6">
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Despesas</h1>
-        <div className="flex gap-2">
-          <button
-            onClick={() => { setEditRecurring(null); setRecurringModalOpen(true) }}
-            className="btn-secondary text-sm"
-          >
-            <Repeat size={16} /> Nova recorrente
-          </button>
-          <button onClick={() => setAddOpen(true)} className="btn-danger text-sm">
-            <Plus size={16} /> Nova despesa
-          </button>
-        </div>
+        <button onClick={() => setAddOpen(true)} className="btn-danger text-sm">
+          <Plus size={16} /> Nova despesa
+        </button>
       </div>
 
       {/* Alerta prazos próximos */}
@@ -114,76 +91,6 @@ export default function Expenses() {
             <span className="font-semibold">{nearDeadline} despesa{nearDeadline > 1 ? 's' : ''}</span> com prazo de encerramento próximo ou vencido.
           </p>
         </div>
-      )}
-
-      {/* ── Despesas recorrentes ── */}
-      {recurringExpenses.length > 0 ? (
-        <div className="card p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 flex items-center gap-2">
-              <Repeat size={15} /> Despesas recorrentes ativas
-            </p>
-            <span className="text-sm font-semibold text-red-600 dark:text-red-400">
-              -{formatCurrency(totalRecurring)}/mês
-            </span>
-          </div>
-          <div className="space-y-2">
-            {recurringExpenses.map((rec) => (
-              <div key={rec.id} className="flex items-center justify-between py-1">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500 dark:text-red-400">
-                    <Repeat size={15} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{rec.description}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Todo dia {rec.due_day} •{' '}
-                      {rec.period === 'monthly' ? 'Mensal' : rec.period === 'annual' ? 'Anual' : 'Semanal'}
-                      {rec.end_date && ` • até ${formatDate(rec.end_date)}`}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-red-600 dark:text-red-400">
-                    -{formatCurrency(rec.amount)}
-                  </span>
-                  <button
-                    onClick={() => { setEditRecurring(rec); setRecurringModalOpen(true) }}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400"
-                    title="Editar"
-                  >
-                    <Settings2 size={15} />
-                  </button>
-                  <button
-                    onClick={() => setDeleteRecurringId(rec.id)}
-                    className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-400"
-                    title="Excluir"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        /* Banner quando não há recorrentes */
-        <button
-          onClick={() => { setEditRecurring(null); setRecurringModalOpen(true) }}
-          className="w-full flex items-center gap-3 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left"
-        >
-          <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500 dark:text-red-400 shrink-0">
-            <Repeat size={18} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Adicionar despesa recorrente
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Aluguel, internet, Netflix, academia... lançados automaticamente todo mês.
-            </p>
-          </div>
-        </button>
       )}
 
       {/* Stats */}
@@ -206,7 +113,7 @@ export default function Expenses() {
         </div>
       </div>
 
-      {/* Filter */}
+      {/* Filtro */}
       <div className="card">
         <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="input">
           <option value="">Todas as categorias</option>
@@ -216,23 +123,14 @@ export default function Expenses() {
         </select>
       </div>
 
-      {/* Table */}
+      {/* Tabela */}
       {expenseTransactions.length === 0 ? (
         <div className="card">
           <EmptyState
             icon={<TrendingDown size={32} />}
             title="Nenhuma despesa"
-            message="Adicione despesas avulsas ou configure recorrentes."
-            action={
-              <div className="flex gap-2">
-                <button onClick={() => { setEditRecurring(null); setRecurringModalOpen(true) }} className="btn-secondary">
-                  <Repeat size={16} /> Recorrente
-                </button>
-                <button onClick={() => setAddOpen(true)} className="btn-danger">
-                  <Plus size={16} /> Nova despesa
-                </button>
-              </div>
-            }
+            message="Adicione suas despesas. Marque como recorrente para repetir todo mês."
+            action={<button onClick={() => setAddOpen(true)} className="btn-danger"><Plus size={16} /> Nova despesa</button>}
           />
         </div>
       ) : (
@@ -254,17 +152,12 @@ export default function Expenses() {
               {expenseTransactions.map((t) => {
                 const dueSoon = t.due_date && t.status !== 'paid' && daysUntilDue(t.due_date) <= 3
                 return (
-                  <tr
-                    key={t.id}
-                    className={cn('table-row', dueSoon && 'bg-yellow-50/50 dark:bg-yellow-900/10')}
-                  >
+                  <tr key={t.id} className={cn('table-row', dueSoon && 'bg-yellow-50/50 dark:bg-yellow-900/10')}>
                     <td className="px-4 py-3 font-medium">
                       <div>
                         {t.description}
                         {t.installment_total && (
-                          <span className="text-xs text-gray-400 ml-1">
-                            ({t.installment_number}/{t.installment_total})
-                          </span>
+                          <span className="text-xs text-gray-400 ml-1">({t.installment_number}/{t.installment_total})</span>
                         )}
                         {t.recurring_id && (
                           <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded-full">
@@ -272,9 +165,7 @@ export default function Expenses() {
                           </span>
                         )}
                         {t.due_date && (
-                          <div className="mt-1 lg:hidden">
-                            <DueDateBadge dueDate={t.due_date} />
-                          </div>
+                          <div className="mt-1 lg:hidden"><DueDateBadge dueDate={t.due_date} /></div>
                         )}
                       </div>
                     </td>
@@ -296,16 +187,10 @@ export default function Expenses() {
                     <td className="px-4 py-3 text-center">{statusBadge(t.status)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setEditTransaction(t)}
-                          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
-                        >
+                        <button onClick={() => setEditTransaction(t)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500" title="Editar">
                           <Pencil size={16} />
                         </button>
-                        <button
-                          onClick={() => setDeleteId(t.id)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"
-                        >
+                        <button onClick={() => setDeleteId(t.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500" title="Excluir">
                           <Trash2 size={16} />
                         </button>
                       </div>
@@ -318,38 +203,18 @@ export default function Expenses() {
         </div>
       )}
 
-      {/* Modal recorrente */}
-      {recurringModalOpen && (
-        <RecurringExpenseModal
-          categories={expenseCategories}
-          accounts={accounts}
-          existing={editRecurring ?? undefined}
-          onClose={() => { setRecurringModalOpen(false); setEditRecurring(null) }}
-          onSave={(data) => {
-            if (editRecurring) {
-              updateRecurring(editRecurring.id, data)
-            } else {
-              addRecurring(data)
-            }
-            setRecurringModalOpen(false)
-            setEditRecurring(null)
-          }}
-          onDelete={
-            editRecurring
-              ? () => { deleteRecurring(editRecurring.id); setRecurringModalOpen(false); setEditRecurring(null) }
-              : undefined
-          }
-        />
-      )}
-
-      {/* Modal nova/editar despesa */}
+      {/* Modais */}
       {addOpen && (
         <ExpenseFormModal
           categories={expenseCategories}
           accounts={accounts}
           creditCards={creditCards}
           onClose={() => setAddOpen(false)}
-          onSave={async (data) => { await addTransaction({ ...data, type: 'expense' }); setAddOpen(false) }}
+          onSave={async (data, recurringData) => {
+            await addTransaction({ ...data, type: 'expense' })
+            if (recurringData) await addRecurring(recurringData)
+            setAddOpen(false)
+          }}
         />
       )}
       {editTransaction && (
@@ -359,7 +224,11 @@ export default function Expenses() {
           creditCards={creditCards}
           transaction={editTransaction}
           onClose={() => setEditTransaction(null)}
-          onSave={async (data) => { await updateTransaction(editTransaction.id, data); setEditTransaction(null) }}
+          onSave={async (data, recurringData) => {
+            await updateTransaction(editTransaction.id, data)
+            if (recurringData) await addRecurring(recurringData)
+            setEditTransaction(null)
+          }}
         />
       )}
 
@@ -371,229 +240,24 @@ export default function Expenses() {
         message="Tem certeza que deseja excluir esta despesa?"
         confirmLabel="Excluir"
       />
-      <ConfirmDialog
-        open={deleteRecurringId !== null}
-        onClose={() => setDeleteRecurringId(null)}
-        onConfirm={() => deleteRecurringId && deleteRecurring(deleteRecurringId)}
-        title="Remover despesa recorrente"
-        message="A recorrente será removida. Os lançamentos já gerados não serão apagados."
-        confirmLabel="Remover"
-      />
     </div>
   )
 }
 
-// ── Modal despesa recorrente ───────────────────────────────────────────────
-interface RecurringModalProps {
-  categories: { id: string; name: string }[]
-  accounts: { id: string; name: string; bank: string | null }[]
-  existing?: {
-    id: string; description: string; amount: number
-    due_day: number; account_id: string | null
-    category_id: string | null; period: string
-    start_date: string; end_date: string | null
-  }
-  onClose: () => void
-  onSave: (data: Record<string, unknown>) => void
-  onDelete?: () => void
-}
-
-const quickExpenses = [
-  { label: 'Aluguel', icon: '🏠' },
-  { label: 'Internet', icon: '📡' },
-  { label: 'Energia', icon: '⚡' },
-  { label: 'Água', icon: '💧' },
-  { label: 'Netflix', icon: '🎬' },
-  { label: 'Spotify', icon: '🎵' },
-  { label: 'Academia', icon: '🏋️' },
-  { label: 'Telefone', icon: '📱' },
-]
-
-function RecurringExpenseModal({ categories, accounts, existing, onClose, onSave, onDelete }: RecurringModalProps) {
-  const [description, setDescription] = useState(existing?.description || '')
-  const [amount, setAmount] = useState(existing ? String(existing.amount) : '')
-  const [dueDay, setDueDay] = useState(String(existing?.due_day || 1))
-  const [accountId, setAccountId] = useState(existing?.account_id || '')
-  const [categoryId, setCategoryId] = useState(existing?.category_id || '')
-  const [period, setPeriod] = useState<RecurringPeriod>((existing?.period as RecurringPeriod) || 'monthly')
-  const [startDate, setStartDate] = useState(existing?.start_date || todayISO())
-  const [endDate, setEndDate] = useState(existing?.end_date || '')
-  const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
-  const handleSave = () => {
-    if (!description || !amount) return
-    setSaving(true)
-    onSave({
-      description,
-      amount: parseFloat(amount),
-      type: 'expense',
-      period,
-      due_day: parseInt(dueDay),
-      start_date: startDate,
-      end_date: endDate || null,
-      category_id: categoryId || null,
-      account_id: accountId || null,
-    })
-  }
-
-  return (
-    <Modal open={true} onClose={onClose} title={existing ? 'Editar Recorrente' : 'Nova Despesa Recorrente'} size="md">
-      <div className="space-y-4">
-
-        {/* Info */}
-        <div className="flex items-start gap-3 bg-red-50 dark:bg-red-900/20 rounded-xl p-3">
-          <Repeat size={18} className="text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700 dark:text-red-300">
-            O lançamento será criado automaticamente todo mês no dia configurado.
-          </p>
-        </div>
-
-        {/* Atalhos rápidos */}
-        {!existing && (
-          <div>
-            <label className="label">Atalhos comuns</label>
-            <div className="flex gap-2 flex-wrap">
-              {quickExpenses.map((q) => (
-                <button
-                  key={q.label}
-                  type="button"
-                  onClick={() => setDescription(q.label)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-sm border transition-all',
-                    description === q.label
-                      ? 'bg-brand-600 text-white border-brand-600'
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800',
-                  )}
-                >
-                  {q.icon} {q.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div>
-          <label className="label">Descrição</label>
-          <input
-            type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Ex: Aluguel"
-            className="input"
-            autoFocus={!!existing}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">Valor (R$)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0,00"
-              className="input"
-            />
-          </div>
-          <div>
-            <label className="label">Dia de vencimento</label>
-            <input
-              type="number"
-              min="1"
-              max="31"
-              value={dueDay}
-              onChange={(e) => setDueDay(e.target.value)}
-              className="input"
-            />
-            <p className="text-xs text-gray-400 mt-1">Todo dia {dueDay} do mês</p>
-          </div>
-        </div>
-
-        <div>
-          <label className="label">Periodicidade</label>
-          <select value={period} onChange={(e) => setPeriod(e.target.value as RecurringPeriod)} className="input">
-            <option value="monthly">Mensal</option>
-            <option value="weekly">Semanal</option>
-            <option value="annual">Anual</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="label">Categoria</label>
-          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="input">
-            <option value="">Selecione...</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="label">Conta de débito</label>
-          <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="input">
-            <option value="">Selecione...</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.name} {a.bank ? `(${a.bank})` : ''}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">Data inicial</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input" />
-          </div>
-          <div>
-            <label className="label">Data final (opcional)</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input" />
-            {endDate && (
-              <button type="button" onClick={() => setEndDate('')} className="text-xs text-gray-400 hover:text-red-500 mt-1">
-                Remover data final
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          {onDelete && (
-            <button onClick={() => setConfirmDelete(true)} className="btn-danger text-sm">
-              <Trash2 size={15} /> Remover
-            </button>
-          )}
-          <button onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !description || !amount}
-            className="btn-danger flex-1"
-          >
-            {saving ? 'Salvando...' : existing ? 'Atualizar' : 'Criar recorrente'}
-          </button>
-        </div>
-      </div>
-
-      <ConfirmDialog
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        onConfirm={() => onDelete?.()}
-        title="Remover despesa recorrente"
-        message="A recorrente será removida. Os lançamentos já gerados não serão apagados."
-        confirmLabel="Remover"
-      />
-    </Modal>
-  )
-}
-
-// ── Modal despesa avulsa ───────────────────────────────────────────────────
+// ── Modal de despesa (com opção de recorrência integrada) ─────────────────
 interface FormProps {
   categories: { id: string; name: string }[]
   accounts: { id: string; name: string; bank: string | null }[]
   creditCards: { id: string; name: string }[]
   transaction?: Transaction
   onClose: () => void
-  onSave: (data: Partial<Transaction>) => Promise<void>
+  onSave: (data: Partial<Transaction>, recurringData?: Record<string, unknown>) => Promise<void>
 }
+
+const quickExpenses = [
+  '🏠 Aluguel', '📡 Internet', '⚡ Energia', '💧 Água',
+  '🎬 Netflix', '🎵 Spotify', '🏋️ Academia', '📱 Telefone',
+]
 
 function ExpenseFormModal({ categories, accounts, creditCards, transaction, onClose, onSave }: FormProps) {
   const [description, setDescription] = useState(transaction?.description || '')
@@ -606,15 +270,22 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
   const [paymentMethod, setPaymentMethod] = useState(transaction?.payment_method || '')
   const [status, setStatus] = useState<TransactionStatus>(transaction?.status || 'pending')
   const [observation, setObservation] = useState(transaction?.observation || '')
+
+  // Recorrência
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [recurringPeriod, setRecurringPeriod] = useState<RecurringPeriod>('monthly')
+  const [recurringDueDay, setRecurringDueDay] = useState(new Date().getDate().toString())
+  const [recurringEndDate, setRecurringEndDate] = useState('')
+
   const [saving, setSaving] = useState(false)
 
-  const dueDays = dueDate ? daysUntilDue(dueDate) : null
+  const dueDays = dueDate ? differenceInDays(parseISO(dueDate), new Date()) : null
 
   const handleSave = async () => {
     if (!description || !amount) return
     setSaving(true)
     try {
-      await onSave({
+      const txData: Partial<Transaction> = {
         description,
         amount: parseFloat(amount),
         date,
@@ -626,7 +297,21 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
         status,
         payment_date: status === 'paid' ? todayISO() : null,
         observation: observation || null,
-      })
+      }
+
+      const recurringData = isRecurring ? {
+        description,
+        amount: parseFloat(amount),
+        type: 'expense',
+        period: recurringPeriod,
+        due_day: parseInt(recurringDueDay) || new Date().getDate(),
+        start_date: date,
+        end_date: recurringEndDate || null,
+        category_id: categoryId || null,
+        account_id: accountId || null,
+      } : undefined
+
+      await onSave(txData, recurringData)
     } catch (err) {
       alert('Erro: ' + (err instanceof Error ? err.message : 'desconhecido'))
     } finally {
@@ -637,10 +322,36 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
   return (
     <Modal open={true} onClose={onClose} title={transaction ? 'Editar Despesa' : 'Nova Despesa'} size="md">
       <div className="space-y-4">
+
+        {/* Atalhos rápidos (só no modo criação) */}
+        {!transaction && (
+          <div className="flex gap-1.5 flex-wrap">
+            {quickExpenses.map((q) => {
+              const label = q.split(' ').slice(1).join(' ')
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setDescription(label)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs border transition-all',
+                    description === label
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800',
+                  )}
+                >
+                  {q}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         <div>
           <label className="label">Descrição</label>
-          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex: Mercado" className="input" autoFocus />
+          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex: Aluguel" className="input" autoFocus />
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Valor (R$)</label>
@@ -651,6 +362,85 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
           </div>
         </div>
+
+        {/* ── Toggle Recorrente ── */}
+        <div className={cn(
+          'rounded-xl border-2 transition-all overflow-hidden',
+          isRecurring
+            ? 'border-purple-300 dark:border-purple-700'
+            : 'border-gray-200 dark:border-gray-700',
+        )}>
+          <button
+            type="button"
+            onClick={() => setIsRecurring(!isRecurring)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className={cn(
+                'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+                isRecurring
+                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-400',
+              )}>
+                <Repeat size={16} />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium">Repetir automaticamente</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {isRecurring ? 'Esta despesa vai se repetir todo mês' : 'Lançamento único'}
+                </p>
+              </div>
+            </div>
+            {/* Toggle switch */}
+            <div className={cn(
+              'relative w-11 h-6 rounded-full transition-colors shrink-0',
+              isRecurring ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-600',
+            )}>
+              <div className={cn(
+                'absolute top-1 w-4 h-4 rounded-full bg-white transition-transform',
+                isRecurring ? 'translate-x-6' : 'translate-x-1',
+              )} />
+            </div>
+          </button>
+
+          {/* Configurações da recorrência */}
+          {isRecurring && (
+            <div className="px-4 pb-4 pt-1 space-y-3 bg-purple-50/50 dark:bg-purple-900/10 border-t border-purple-200 dark:border-purple-800">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Periodicidade</label>
+                  <select value={recurringPeriod} onChange={(e) => setRecurringPeriod(e.target.value as RecurringPeriod)} className="input">
+                    <option value="monthly">Mensal</option>
+                    <option value="weekly">Semanal</option>
+                    <option value="annual">Anual</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Dia do vencimento</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={recurringDueDay}
+                    onChange={(e) => setRecurringDueDay(e.target.value)}
+                    className="input"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Todo dia {recurringDueDay}</p>
+                </div>
+              </div>
+              <div>
+                <label className="label">Data final (opcional)</label>
+                <input type="date" value={recurringEndDate} onChange={(e) => setRecurringEndDate(e.target.value)} className="input" />
+                {recurringEndDate && (
+                  <button type="button" onClick={() => setRecurringEndDate('')} className="text-xs text-gray-400 hover:text-red-500 mt-1">
+                    Remover data final
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Prazo de encerramento */}
         <div>
           <label className="label">
@@ -668,8 +458,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             )}
           />
           {dueDate && dueDays !== null && (
-            <p className={cn(
-              'text-xs mt-1.5 flex items-center gap-1',
+            <p className={cn('text-xs mt-1.5 flex items-center gap-1',
               dueDays < 0 ? 'text-red-600 dark:text-red-400'
                 : dueDays <= 3 ? 'text-yellow-600 dark:text-yellow-400'
                 : 'text-gray-500 dark:text-gray-400',
@@ -679,12 +468,9 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
               {dueDays > 0 && <><Clock size={12} /> Encerra em {dueDays} dia{dueDays !== 1 ? 's' : ''}</>}
             </p>
           )}
-          {dueDate && (
-            <button type="button" onClick={() => setDueDate('')} className="text-xs text-gray-400 hover:text-red-500 mt-1 transition-colors">
-              Remover prazo
-            </button>
-          )}
+          {dueDate && <button type="button" onClick={() => setDueDate('')} className="text-xs text-gray-400 hover:text-red-500 mt-1">Remover prazo</button>}
         </div>
+
         <div>
           <label className="label">Categoria</label>
           <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="input">
@@ -692,6 +478,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+
         <div>
           <label className="label">Conta</label>
           <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="input">
@@ -699,6 +486,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} {a.bank ? `(${a.bank})` : ''}</option>)}
           </select>
         </div>
+
         <div>
           <label className="label">Cartão de crédito</label>
           <select value={creditCardId} onChange={(e) => setCreditCardId(e.target.value)} className="input">
@@ -706,6 +494,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             {creditCards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+
         <div>
           <label className="label">Forma de pagamento</label>
           <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="input">
@@ -713,6 +502,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             {paymentMethods.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
+
         <div>
           <label className="label">Status</label>
           <select value={status} onChange={(e) => setStatus(e.target.value as TransactionStatus)} className="input">
@@ -720,14 +510,16 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
             <option value="paid">Pago</option>
           </select>
         </div>
+
         <div>
           <label className="label">Observação (opcional)</label>
           <textarea value={observation} onChange={(e) => setObservation(e.target.value)} className="input resize-none" rows={2} />
         </div>
+
         <div className="flex gap-2">
           <button onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
           <button onClick={handleSave} disabled={saving || !description || !amount} className="btn-danger flex-1">
-            {saving ? 'Salvando...' : 'Salvar'}
+            {saving ? 'Salvando...' : isRecurring ? 'Salvar e repetir' : 'Salvar'}
           </button>
         </div>
       </div>
