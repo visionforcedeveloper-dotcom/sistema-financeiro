@@ -79,7 +79,9 @@ export default function Forecast() {
         if (rec.type !== 'income') continue
         const start = parseISO(rec.start_date)
         const end = rec.end_date ? parseISO(rec.end_date) : null
-        if (isAfter(start, monthEnd)) continue
+        // A recorrente precisa ter começado antes do fim do mês
+        if (isAfter(startOfMonth(start), monthEnd)) continue
+        // E não ter terminado antes do início do mês
         if (end && isBefore(end, monthStart)) continue
 
         if (rec.period === 'monthly') {
@@ -88,10 +90,13 @@ export default function Forecast() {
             amount: rec.amount,
             type: 'income',
             source: 'recurring',
-            dueDate: `${y}-${String(m).padStart(2, '0')}-${String(rec.due_day).padStart(2, '0')}`,
+            dueDate: `${y}-${String(m).padStart(2, '0')}-${String(Math.min(rec.due_day, 28)).padStart(2, '0')}`,
           })
-        } else if (rec.period === 'annual' && (start.getMonth() + 1) === m) {
-          items.push({ description: rec.description + ' (anual)', amount: rec.amount, type: 'income', source: 'recurring' })
+        } else if (rec.period === 'annual') {
+          // Só inclui no mês de aniversário (mesmo mês do start_date)
+          if ((start.getMonth() + 1) === m) {
+            items.push({ description: rec.description + ' (anual)', amount: rec.amount, type: 'income', source: 'recurring' })
+          }
         } else if (rec.period === 'weekly') {
           items.push({ description: rec.description + ' (semanal ×4)', amount: rec.amount * 4, type: 'income', source: 'recurring' })
         }
@@ -102,7 +107,9 @@ export default function Forecast() {
         if (rec.type !== 'expense') continue
         const start = parseISO(rec.start_date)
         const end = rec.end_date ? parseISO(rec.end_date) : null
-        if (isAfter(start, monthEnd)) continue
+        // A recorrente precisa ter começado antes do fim do mês
+        if (isAfter(startOfMonth(start), monthEnd)) continue
+        // E não ter terminado antes do início do mês
         if (end && isBefore(end, monthStart)) continue
 
         if (rec.period === 'monthly') {
@@ -111,10 +118,12 @@ export default function Forecast() {
             amount: rec.amount,
             type: 'expense',
             source: 'recurring',
-            dueDate: `${y}-${String(m).padStart(2, '0')}-${String(rec.due_day).padStart(2, '0')}`,
+            dueDate: `${y}-${String(m).padStart(2, '0')}-${String(Math.min(rec.due_day, 28)).padStart(2, '0')}`,
           })
-        } else if (rec.period === 'annual' && (start.getMonth() + 1) === m) {
-          items.push({ description: rec.description + ' (anual)', amount: rec.amount, type: 'expense', source: 'recurring' })
+        } else if (rec.period === 'annual') {
+          if ((start.getMonth() + 1) === m) {
+            items.push({ description: rec.description + ' (anual)', amount: rec.amount, type: 'expense', source: 'recurring' })
+          }
         } else if (rec.period === 'weekly') {
           items.push({ description: rec.description + ' (semanal ×4)', amount: rec.amount * 4, type: 'expense', source: 'recurring' })
         }
