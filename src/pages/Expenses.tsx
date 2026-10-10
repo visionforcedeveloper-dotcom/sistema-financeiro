@@ -203,7 +203,6 @@ export default function Expenses() {
         </div>
       )}
 
-      {/* Modais */}
       {addOpen && (
         <ExpenseFormModal
           categories={expenseCategories}
@@ -251,7 +250,7 @@ interface FormProps {
   creditCards: { id: string; name: string }[]
   transaction?: Transaction
   onClose: () => void
-  onSave: (data: Partial<Transaction>, recurringData?: Record<string, unknown>) => Promise<void>
+  onSave: (data: Partial<Transaction>, recurringData?: Partial<import('../types').RecurringTransaction>) => Promise<void>
 }
 
 const quickExpenses = [
@@ -289,7 +288,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
         description,
         amount: parseFloat(amount),
         date,
-        due_date: dueDate || null,
+        due_date: !isRecurring ? (dueDate || null) : null,
         category_id: categoryId || null,
         account_id: accountId || null,
         credit_card_id: creditCardId || null,
@@ -299,7 +298,7 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
         observation: observation || null,
       }
 
-      const recurringData = isRecurring ? {
+      const recurringData: Partial<import('../types').RecurringTransaction> | undefined = isRecurring ? {
         description,
         amount: parseFloat(amount),
         type: 'expense',
@@ -429,7 +428,9 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
                 </div>
               </div>
               <div>
-                <label className="label">Data final (opcional)</label>
+                <label className="label">
+                  Data final <span className="text-xs text-gray-400 font-normal">(opcional — quando encerrar)</span>
+                </label>
                 <input type="date" value={recurringEndDate} onChange={(e) => setRecurringEndDate(e.target.value)} className="input" />
                 {recurringEndDate && (
                   <button type="button" onClick={() => setRecurringEndDate('')} className="text-xs text-gray-400 hover:text-red-500 mt-1">
@@ -441,35 +442,37 @@ function ExpenseFormModal({ categories, accounts, creditCards, transaction, onCl
           )}
         </div>
 
-        {/* Prazo de encerramento */}
-        <div>
-          <label className="label">
-            Prazo de encerramento
-            <span className="text-xs text-gray-400 font-normal ml-1">(opcional)</span>
-          </label>
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className={cn(
-              'input',
-              dueDate && dueDays !== null && dueDays < 0 && 'border-red-400 focus:ring-red-500',
-              dueDate && dueDays !== null && dueDays >= 0 && dueDays <= 3 && 'border-yellow-400 focus:ring-yellow-500',
+        {/* Prazo de encerramento — apenas para lançamentos únicos */}
+        {!isRecurring && (
+          <div>
+            <label className="label">
+              Prazo de encerramento
+              <span className="text-xs text-gray-400 font-normal ml-1">(opcional)</span>
+            </label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className={cn(
+                'input',
+                dueDate && dueDays !== null && dueDays < 0 && 'border-red-400 focus:ring-red-500',
+                dueDate && dueDays !== null && dueDays >= 0 && dueDays <= 3 && 'border-yellow-400 focus:ring-yellow-500',
+              )}
+            />
+            {dueDate && dueDays !== null && (
+              <p className={cn('text-xs mt-1.5 flex items-center gap-1',
+                dueDays < 0 ? 'text-red-600 dark:text-red-400'
+                  : dueDays <= 3 ? 'text-yellow-600 dark:text-yellow-400'
+                  : 'text-gray-500 dark:text-gray-400',
+              )}>
+                {dueDays < 0 && <><AlertTriangle size={12} /> Prazo encerrado há {Math.abs(dueDays)} dia{Math.abs(dueDays) !== 1 ? 's' : ''}</>}
+                {dueDays === 0 && <><AlertTriangle size={12} /> O prazo encerra hoje</>}
+                {dueDays > 0 && <><Clock size={12} /> Encerra em {dueDays} dia{dueDays !== 1 ? 's' : ''}</>}
+              </p>
             )}
-          />
-          {dueDate && dueDays !== null && (
-            <p className={cn('text-xs mt-1.5 flex items-center gap-1',
-              dueDays < 0 ? 'text-red-600 dark:text-red-400'
-                : dueDays <= 3 ? 'text-yellow-600 dark:text-yellow-400'
-                : 'text-gray-500 dark:text-gray-400',
-            )}>
-              {dueDays < 0 && <><AlertTriangle size={12} /> Prazo encerrado há {Math.abs(dueDays)} dia{Math.abs(dueDays) !== 1 ? 's' : ''}</>}
-              {dueDays === 0 && <><AlertTriangle size={12} /> O prazo encerra hoje</>}
-              {dueDays > 0 && <><Clock size={12} /> Encerra em {dueDays} dia{dueDays !== 1 ? 's' : ''}</>}
-            </p>
-          )}
-          {dueDate && <button type="button" onClick={() => setDueDate('')} className="text-xs text-gray-400 hover:text-red-500 mt-1">Remover prazo</button>}
-        </div>
+            {dueDate && <button type="button" onClick={() => setDueDate('')} className="text-xs text-gray-400 hover:text-red-500 mt-1">Remover prazo</button>}
+          </div>
+        )}
 
         <div>
           <label className="label">Categoria</label>
