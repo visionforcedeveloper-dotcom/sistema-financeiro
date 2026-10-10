@@ -10,14 +10,8 @@ const Transactions = lazy(() => import('./pages/Transactions'))
 const Income       = lazy(() => import('./pages/Income'))
 const Expenses     = lazy(() => import('./pages/Expenses'))
 const BillsToPay   = lazy(() => import('./pages/BillsToPay'))
-const CreditCards  = lazy(() => import('./pages/CreditCards'))
-const Accounts     = lazy(() => import('./pages/Accounts'))
-const Budget       = lazy(() => import('./pages/Budget'))
-const Goals        = lazy(() => import('./pages/Goals'))
 const Calendar     = lazy(() => import('./pages/Calendar'))
 const Reports      = lazy(() => import('./pages/Reports'))
-const Settings     = lazy(() => import('./pages/Settings'))
-const Forecast     = lazy(() => import('./pages/Forecast'))
 
 function LoadingFallback() {
   return (
@@ -42,19 +36,13 @@ export default function App() {
         <Layout onQuickAdd={() => openModal()}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
-              <Route path="/"            element={<Dashboard onQuickAdd={openModal} />} />
+              <Route path="/"             element={<Dashboard onQuickAdd={openModal} />} />
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/income"       element={<Income />} />
               <Route path="/expenses"     element={<Expenses />} />
               <Route path="/bills"        element={<BillsToPay />} />
-              <Route path="/cards"        element={<CreditCards />} />
-              <Route path="/accounts"     element={<Accounts />} />
-              <Route path="/budget"       element={<Budget />} />
-              <Route path="/goals"        element={<Goals />} />
               <Route path="/calendar"     element={<Calendar />} />
               <Route path="/reports"      element={<Reports />} />
-              <Route path="/forecast"     element={<Forecast />} />
-              <Route path="/settings"     element={<Settings />} />
             </Routes>
           </Suspense>
         </Layout>
