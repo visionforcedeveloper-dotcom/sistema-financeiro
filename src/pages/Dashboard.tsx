@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useData } from '../context/DataContext'
 import {
   formatCurrency, isSameMonth, getCurrentMonth, getMonthNameFull, cn,
@@ -79,8 +79,15 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
     loading,
   } = useData()
 
-  const { month, year } = getCurrentMonth()
+  const { month, year: currentYear } = getCurrentMonth()
   const today = new Date()
+  const [selectedYear, setSelectedYear] = useState(currentYear)
+
+  // Anos disponíveis: 3 anos atrás até 3 anos à frente
+  const availableYears = Array.from({ length: 7 }, (_, i) => currentYear - 3 + i)
+
+  // Stats do mês atual (sempre ano/mês atual, não o selecionado)
+  const year = currentYear
 
   // ── Stats do mês atual ───────────────────────────────────────────────
   const monthIncome = transactions
@@ -98,24 +105,25 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
     .filter((t) => t.type === 'expense' && t.status === 'overdue')
     .reduce((s, t) => s + t.amount, 0)
 
-  // ── Planilha anual (Jan–Dez do ano atual + próximos meses) ────────────
+  // ── Planilha anual (usa o ano selecionado) ────────────────────────────
   const annualData = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
       const m = i + 1
-      const y = year
-      const isPast = m < month || (m === month)
-      const isFuture = m > month
+      const y = selectedYear
+      const isFuture =
+        y > currentYear || (y === currentYear && m > month)
+      const isCurrent = y === currentYear && m === month
       const data = buildMonthData(m, y, transactions, recurringTransactions, isFuture)
       return {
         month: format(new Date(y, i), 'MMM', { locale: ptBR }).replace('.', ''),
         monthFull: format(new Date(y, i), 'MMMM', { locale: ptBR }),
         m, y,
         ...data,
-        isCurrent: m === month,
+        isCurrent,
         isFuture,
       }
     })
-  }, [transactions, recurringTransactions, month, year])
+  }, [transactions, recurringTransactions, month, currentYear, selectedYear])
 
   // ── Últimas movimentações ────────────────────────────────────────────
   const recentTransactions = transactions.slice(0, 5)
@@ -206,10 +214,36 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
 
           {/* ── Planilha Anual ── */}
           <div className="card p-0 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-              <CalendarDays size={18} className="text-brand-500" />
-              <h3 className="font-semibold">Visão Anual {year}</h3>
-              <span className="text-xs text-gray-400 ml-1">• meses anteriores reais, meses futuros previstos</span>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-2">
+                <CalendarDays size={18} className="text-brand-500" />
+                <h3 className="font-semibold">Visão Anual</h3>
+                <span className="text-xs text-gray-400">• reais = passado · prev. = futuro</span>
+              </div>
+              {/* Seletor de ano */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setSelectedYear(y => y - 1)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
+                >
+                  ‹
+                </button>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="text-sm font-semibold bg-transparent border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setSelectedYear(y => y + 1)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
+                >
+                  ›
+                </button>
+              </div>
             </div>
 
             {/* Tabela */}
@@ -296,7 +330,7 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
                   ))}
                   {/* Total do ano */}
                   <tr className="bg-gray-50 dark:bg-gray-800/50 border-t-2 border-gray-200 dark:border-gray-700">
-                    <td className="px-4 py-3 font-bold text-gray-700 dark:text-gray-300">Total {year}</td>
+                    <td className="px-4 py-3 font-bold text-gray-700 dark:text-gray-300">Total {selectedYear}</td>
                     <td className="px-4 py-3 text-right font-bold text-green-600 dark:text-green-400">
                       {formatCurrency(annualData.reduce((s, r) => s + r.income, 0))}
                     </td>
@@ -322,7 +356,7 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
 
           {/* ── Gráfico anual ── */}
           <div className="card">
-            <h3 className="font-semibold text-base mb-4">Receita × Despesas × Sobra — {year}</h3>
+            <h3 className="font-semibold text-base mb-4">Receita × Despesas × Sobra — {selectedYear}</h3>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={annualData} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100 dark:stroke-gray-800" />
