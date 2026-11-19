@@ -14,7 +14,7 @@ import {
 } from 'recharts'
 import EmptyState from '../components/EmptyState'
 import {
-  addMonths, subMonths, startOfMonth, endOfMonth, parseISO,
+  startOfMonth, endOfMonth, parseISO,
   isAfter, isBefore, format,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -23,52 +23,64 @@ interface DashboardProps {
   onQuickAdd: (type?: 'expense' | 'income' | 'transfer') => void
 }
 
-// Gera dados de um mês: receita real (passado) ou prevista (futuro)
+type TxList = ReturnType<typeof useData>['transactions']
+type RecList = ReturnType<typeof useData>['recurringTransactions']
+
+// ── Cálculo de um mês ────────────────────────────────────────────────────
+// Regras:
+// - Mês passado sem dados reais → zero (não projeta recorrentes no passado)
+// - Mês atual ou futuro sem dados reais → projeta com recorrentes
+// - Se há dados reais de um tipo, usa só eles (nunca dobra com recorrentes)
 function buildMonthData(
   m: number, y: number,
-  transactions: ReturnType<typeof useData>['transactions'],
-  recurringTransactions: ReturnType<typeof useData>['recurringTransactions'],
-  isFuture: boolean,
+  transactions: TxList,
+  recurringTransactions: RecList,
+  currentMonth: number,
+  currentYear: number,
 ) {
   const monthStart = startOfMonth(new Date(y, m - 1))
   const monthEnd = endOfMonth(new Date(y, m - 1))
 
-  if (!isFuture) {
-    // Dados reais
-    const income = transactions
-      .filter((t) => t.type === 'income' && isSameMonth(t.date, m, y))
-      .reduce((s, t) => s + t.amount, 0)
-    const expense = transactions
-      .filter((t) => t.type === 'expense' && isSameMonth(t.date, m, y))
-      .reduce((s, t) => s + t.amount, 0)
-    return { income, expense, balance: income - expense, isReal: true }
+  const isPast = y < currentYear || (y === currentYear && m < currentMonth)
+
+  const realIncomeList = transactions.filter((t) => t.type === 'income' && isSameMonth(t.date, m, y))
+  const realExpenseList = transactions.filter((t) => t.type === 'expense' && isSameMonth(t.date, m, y))
+
+  const hasRealIncome = realIncomeList.length > 0
+  const hasRealExpense = realExpenseList.length > 0
+
+  const realIncome = realIncomeList.reduce((s, t) => s + t.amount, 0)
+  const realExpense = realExpenseList.reduce((s, t) => s + t.amount, 0)
+
+  // Mês passado sem dados → zero (não inventa projeção)
+  if (isPast && !hasRealIncome && !hasRealExpense) {
+    return { income: 0, expense: 0, balance: 0 }
   }
 
-  // Previsão com base em recorrentes
-  let income = 0
-  let expense = 0
+  // Projeta recorrentes apenas para tipos sem dados reais (só presente/futuro)
+  let projIncome = 0
+  let projExpense = 0
 
-  for (const rec of recurringTransactions) {
-    const start = parseISO(rec.start_date)
-    const end = rec.end_date ? parseISO(rec.end_date) : null
-    if (isAfter(startOfMonth(start), monthEnd)) continue
-    if (end && isBefore(end, monthStart)) continue
+  if (!isPast || !hasRealIncome || !hasRealExpense) {
+    for (const rec of recurringTransactions) {
+      const recStart = parseISO(rec.start_date)
+      const recEnd = rec.end_date ? parseISO(rec.end_date) : null
 
-    const amount = rec.period === 'weekly' ? rec.amount * 4 : rec.amount
-    if (rec.period === 'annual' && (start.getMonth() + 1) !== m) continue
+      if (isAfter(startOfMonth(recStart), monthEnd)) continue
+      if (recEnd && isBefore(endOfMonth(recEnd), monthStart)) continue
+      if (rec.period === 'annual' && (recStart.getMonth() + 1) !== m) continue
 
-    if (rec.type === 'income') income += amount
-    else if (rec.type === 'expense') expense += amount
+      const amount = rec.period === 'weekly' ? rec.amount * 4 : rec.amount
+
+      if (rec.type === 'income' && !hasRealIncome) projIncome += amount
+      if (rec.type === 'expense' && !hasRealExpense) projExpense += amount
+    }
   }
 
-  // Despesas avulsas com data neste mês (parcelas futuras etc.)
-  for (const t of transactions) {
-    if (t.type !== 'expense' || t.recurring_id) continue
-    const tDate = parseISO(t.date)
-    if (tDate >= monthStart && tDate <= monthEnd) expense += t.amount
-  }
+  const income = hasRealIncome ? realIncome : projIncome
+  const expense = hasRealExpense ? realExpense : projExpense
 
-  return { income, expense, balance: income - expense, isReal: false }
+  return { income, expense, balance: income - expense }
 }
 
 export default function Dashboard({ onQuickAdd }: DashboardProps) {
@@ -80,23 +92,20 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
   } = useData()
 
   const { month, year: currentYear } = getCurrentMonth()
-  const today = new Date()
   const [selectedYear, setSelectedYear] = useState(currentYear)
 
-  // Anos disponíveis: 3 anos atrás até 3 anos à frente
   const availableYears = Array.from({ length: 7 }, (_, i) => currentYear - 3 + i)
 
-  // Stats do mês atual (sempre ano/mês atual, não o selecionado)
   const year = currentYear
 
-  // ── Stats do mês atual ───────────────────────────────────────────────
-  const monthIncome = transactions
-    .filter((t) => t.type === 'income' && isSameMonth(t.date, month, year))
-    .reduce((s, t) => s + t.amount, 0)
-  const monthExpense = transactions
-    .filter((t) => t.type === 'expense' && isSameMonth(t.date, month, year))
-    .reduce((s, t) => s + t.amount, 0)
-  const monthBalance = monthIncome - monthExpense
+  // ── Stats do mês atual (inclui recorrentes não gerados) ────────────────
+  const currentMonthData = useMemo(
+    () => buildMonthData(month, year, transactions, recurringTransactions, month, year),
+    [month, year, transactions, recurringTransactions],
+  )
+  const monthIncome = currentMonthData.income
+  const monthExpense = currentMonthData.expense
+  const monthBalance = currentMonthData.balance
 
   const billsPending = transactions
     .filter((t) => t.type === 'expense' && t.status === 'pending')
@@ -105,30 +114,40 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
     .filter((t) => t.type === 'expense' && t.status === 'overdue')
     .reduce((s, t) => s + t.amount, 0)
 
-  // ── Planilha anual (usa o ano selecionado) ────────────────────────────
+  // ── Planilha anual com saldo acumulado ────────────────────────────────
   const annualData = useMemo(() => {
-    return Array.from({ length: 12 }, (_, i) => {
+    let runningBalance = 0
+
+    const rows = Array.from({ length: 12 }, (_, i) => {
       const m = i + 1
-      const y = selectedYear
-      const isFuture =
-        y > currentYear || (y === currentYear && m > month)
-      const isCurrent = y === currentYear && m === month
-      const data = buildMonthData(m, y, transactions, recurringTransactions, isFuture)
+      const isFuture = selectedYear > currentYear || (selectedYear === currentYear && m > month)
+      const isCurrent = selectedYear === currentYear && m === month
+      const isPast = selectedYear < currentYear || (selectedYear === currentYear && m < month)
+
+      const data = buildMonthData(m, selectedYear, transactions, recurringTransactions, month, currentYear)
+      runningBalance += data.balance
+
       return {
-        month: format(new Date(y, i), 'MMM', { locale: ptBR }).replace('.', ''),
-        monthFull: format(new Date(y, i), 'MMMM', { locale: ptBR }),
-        m, y,
-        ...data,
+        month: format(new Date(selectedYear, i), 'MMM', { locale: ptBR }).replace('.', ''),
+        monthFull: format(new Date(selectedYear, i), 'MMMM', { locale: ptBR }),
+        m,
+        y: selectedYear,
+        income: data.income,
+        expense: data.expense,
+        balance: data.balance,
+        accumulated: runningBalance,
         isCurrent,
         isFuture,
+        isPast,
       }
     })
+    return rows
   }, [transactions, recurringTransactions, month, currentYear, selectedYear])
 
-  // ── Últimas movimentações ────────────────────────────────────────────
+  // ── Últimas movimentações ──────────────────────────────────────────────
   const recentTransactions = transactions.slice(0, 5)
 
-  // ── Próximas contas ──────────────────────────────────────────────────
+  // ── Próximas contas ────────────────────────────────────────────────────
   const upcomingBills = transactions
     .filter((t) => t.type === 'expense' && (t.status === 'pending' || t.status === 'overdue'))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -170,7 +189,7 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
           <EmptyState
             icon={<Wallet size={32} />}
             title="Bem-vindo ao FinancePro!"
-            message="Configure seu salário recorrente em Receitas e suas despesas fixas em Despesas para ver a previsão completa."
+            message="Configure seu salário recorrente em Receitas e suas despesas em Despesas para ver a previsão completa."
             action={
               <div className="flex gap-2 flex-wrap justify-center">
                 <button onClick={() => onQuickAdd('income')} className="btn-success">
@@ -194,10 +213,9 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
             <div className="stat-card">
               <span className="stat-label flex items-center gap-1"><TrendingDown size={13} className="text-red-500" /> Despesas</span>
               <span className="stat-value text-red-600 dark:text-red-400">{formatCurrency(monthExpense)}</span>
-              <p className="text-[10px] text-gray-400">Total do mês</p>
             </div>
             <div className="stat-card">
-              <span className="stat-label"><PiggyBank size={13} className="inline mr-1 text-brand-500" />Sobra</span>
+              <span className="stat-label"><PiggyBank size={13} className="inline mr-1 text-brand-500" />Sobra do mês</span>
               <span className={cn('stat-value', monthBalance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')}>
                 {monthBalance >= 0 ? '+' : ''}{formatCurrency(monthBalance)}
               </span>
@@ -218,7 +236,7 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
               <div className="flex items-center gap-2">
                 <CalendarDays size={18} className="text-brand-500" />
                 <h3 className="font-semibold">Visão Anual</h3>
-                <span className="text-xs text-gray-400">• reais = passado · prev. = futuro</span>
+                <span className="text-xs text-gray-400">• inclui recorrentes não geradas</span>
               </div>
               {/* Seletor de ano */}
               <div className="flex items-center gap-1">
@@ -255,7 +273,8 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
                     <th className="text-right font-medium px-4 py-3 text-gray-500 dark:text-gray-400">Receita</th>
                     <th className="text-right font-medium px-4 py-3 text-gray-500 dark:text-gray-400">Despesas</th>
                     <th className="text-right font-medium px-4 py-3 text-gray-500 dark:text-gray-400">Sobra</th>
-                    <th className="hidden sm:table-cell px-4 py-3 w-40"></th>
+                    <th className="text-right font-medium px-4 py-3 text-gray-500 dark:text-gray-400 hidden sm:table-cell">Acumulado</th>
+                    <th className="hidden md:table-cell px-4 py-3 w-40"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -310,8 +329,21 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
                           <span className="text-gray-300 dark:text-gray-600">—</span>
                         )}
                       </td>
+                      {/* Saldo acumulado */}
+                      <td className="px-4 py-3 text-right hidden sm:table-cell">
+                        {(row.income > 0 || row.expense > 0 || row.accumulated !== 0) ? (
+                          <span className={cn(
+                            'font-bold',
+                            row.accumulated >= 0 ? 'text-brand-600 dark:text-brand-400' : 'text-red-600 dark:text-red-400',
+                          )}>
+                            {row.accumulated >= 0 ? '+' : ''}{formatCurrency(row.accumulated)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 dark:text-gray-600">—</span>
+                        )}
+                      </td>
                       {/* Barra de progresso */}
-                      <td className="hidden sm:table-cell px-4 py-3">
+                      <td className="hidden md:table-cell px-4 py-3">
                         {row.income > 0 && (
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
@@ -347,7 +379,17 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
                         )
                       })()}
                     </td>
-                    <td className="hidden sm:table-cell" />
+                    <td className="px-4 py-3 text-right font-bold hidden sm:table-cell">
+                      {(() => {
+                        const total = annualData.reduce((s, r) => s + r.balance, 0)
+                        return (
+                          <span className={total >= 0 ? 'text-brand-600 dark:text-brand-400' : 'text-red-600 dark:text-red-400'}>
+                            {total >= 0 ? '+' : ''}{formatCurrency(total)}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td className="hidden md:table-cell" />
                   </tr>
                 </tbody>
               </table>
@@ -371,6 +413,24 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
                 <Bar dataKey="income" name="Receita" fill="#16a34a" radius={[4,4,0,0]} />
                 <Bar dataKey="expense" name="Despesas" fill="#dc2626" radius={[4,4,0,0]} />
                 <Bar dataKey="balance" name="Sobra" fill="#5163f6" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* ── Gráfico saldo acumulado ── */}
+          <div className="card">
+            <h3 className="font-semibold text-base mb-4">Saldo Acumulado — {selectedYear}</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={annualData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100 dark:stroke-gray-800" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip
+                  formatter={(v: number) => formatCurrency(v)}
+                  contentStyle={{ borderRadius: '12px', fontSize: '12px', border: '1px solid #e5e7eb' }}
+                />
+                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+                <Bar dataKey="accumulated" name="Saldo acumulado" fill="#5163f6" radius={[4,4,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

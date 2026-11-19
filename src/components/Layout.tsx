@@ -1,13 +1,9 @@
 import { useState, ReactNode } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
-  ArrowLeftRight,
   TrendingUp,
   TrendingDown,
-  Receipt,
-  Calendar,
-  FileBarChart,
   Moon,
   Sun,
   Menu,
@@ -19,12 +15,8 @@ import { cn } from '../lib/utils'
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/transactions', label: 'Lançamentos', icon: ArrowLeftRight },
   { path: '/income', label: 'Receitas', icon: TrendingUp },
   { path: '/expenses', label: 'Despesas', icon: TrendingDown },
-  { path: '/bills', label: 'Contas a pagar', icon: Receipt },
-  { path: '/calendar', label: 'Calendário', icon: Calendar },
-  { path: '/reports', label: 'Relatórios', icon: FileBarChart },
 ]
 
 interface LayoutProps {

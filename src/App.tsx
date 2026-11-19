@@ -5,13 +5,9 @@ import { DataProvider } from './context/DataContext'
 import Layout from './components/Layout'
 import TransactionModal from './components/TransactionModal'
 
-const Dashboard    = lazy(() => import('./pages/Dashboard'))
-const Transactions = lazy(() => import('./pages/Transactions'))
-const Income       = lazy(() => import('./pages/Income'))
-const Expenses     = lazy(() => import('./pages/Expenses'))
-const BillsToPay   = lazy(() => import('./pages/BillsToPay'))
-const Calendar     = lazy(() => import('./pages/Calendar'))
-const Reports      = lazy(() => import('./pages/Reports'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Income    = lazy(() => import('./pages/Income'))
+const Expenses  = lazy(() => import('./pages/Expenses'))
 
 function LoadingFallback() {
   return (
@@ -36,13 +32,10 @@ export default function App() {
         <Layout onQuickAdd={() => openModal()}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
-              <Route path="/"             element={<Dashboard onQuickAdd={openModal} />} />
-              <Route path="/transactions" element={<Transactions />} />
-              <Route path="/income"       element={<Income />} />
-              <Route path="/expenses"     element={<Expenses />} />
-              <Route path="/bills"        element={<BillsToPay />} />
-              <Route path="/calendar"     element={<Calendar />} />
-              <Route path="/reports"      element={<Reports />} />
+              <Route path="/"          element={<Dashboard onQuickAdd={openModal} />} />
+              <Route path="/income"    element={<Income />} />
+              <Route path="/expenses"  element={<Expenses />} />
+              <Route path="*"          element={<Dashboard onQuickAdd={openModal} />} />
             </Routes>
           </Suspense>
         </Layout>

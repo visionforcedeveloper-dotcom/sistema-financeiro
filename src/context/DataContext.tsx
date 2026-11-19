@@ -154,6 +154,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(() => loadAll(), [loadAll])
 
+  // Remove transações duplicadas de recorrentes (mesma recurring_id, mantém a mais recente)
+  useEffect(() => {
+    if (loading) return
+    const allTx = getAll<Transaction>(KEYS.transactions)
+    // Agrupa por recurring_id
+    const byRecurring: Record<string, Transaction[]> = {}
+    allTx.forEach((t) => {
+      if (!t.recurring_id) return
+      if (!byRecurring[t.recurring_id]) byRecurring[t.recurring_id] = []
+      byRecurring[t.recurring_id].push(t)
+    })
+    let changed = false
+    Object.values(byRecurring).forEach((group) => {
+      if (group.length <= 1) return
+      // Mantém a mais recente, remove as outras
+      const sorted = group.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      sorted.slice(1).forEach((t) => {
+        remove(KEYS.transactions, t.id)
+        changed = true
+      })
+    })
+    if (changed) loadAll()
+  }, [loading]) // eslint-disable-line
+
   // Auto-update overdue status
   useEffect(() => {
     if (loading) return
@@ -425,8 +449,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [creditCards, transactions])
 
   // ── Recurring CRUD ───────────────────────────────────────
-  const addRecurring = useCallback((data: Partial<RecurringTransaction>) => {
-    insert<RecurringTransaction>(KEYS.recurringTransactions, {
+  const addRecurring = useCallback((data: Partial<RecurringTransaction>): RecurringTransaction => {
+    const rec = insert<RecurringTransaction>(KEYS.recurringTransactions, {
       description: data.description ?? '',
       amount: data.amount ?? 0,
       category_id: data.category_id ?? null,
@@ -438,6 +462,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       end_date: data.end_date ?? null,
     })
     loadAll()
+    return rec
   }, [loadAll])
 
   const updateRecurring = useCallback((id: string, data: Partial<RecurringTransaction>) => {
@@ -452,37 +477,62 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const generateRecurringTransactions = useCallback(() => {
     const today = new Date()
+    const currentMonth = today.getMonth() + 1
+    const currentYear = today.getFullYear()
+
     for (const rec of recurringTransactions) {
       if (rec.end_date && rec.end_date < todayISO()) continue
-      const alreadyThisMonth = transactions.find(
-        (t) =>
-          t.recurring_id === rec.id &&
-          isSameMonth(t.date, today.getMonth() + 1, today.getFullYear()),
-      )
-      if (alreadyThisMonth) continue
-      const dueDate = new Date(today.getFullYear(), today.getMonth(), rec.due_day)
+
+      // Data de vencimento no mês atual
+      const dueDate = new Date(currentYear, today.getMonth(), rec.due_day)
         .toISOString()
         .split('T')[0]
       if (dueDate < rec.start_date) continue
-      insert<Transaction>(KEYS.transactions, {
-        description: rec.description,
-        amount: rec.amount,
-        date: dueDate,
-        due_date: null,
-        type: rec.type,
-        category_id: rec.category_id,
-        account_id: rec.account_id,
-        status: 'pending',
-        recurring_id: rec.id,
-        credit_card_id: null,
-        payment_method: null,
-        observation: null,
-        installment_group_id: null,
-        installment_number: null,
-        installment_total: null,
-        transfer_account_id: null,
-        payment_date: null,
-      })
+
+      // Busca a transação existente deste recorrente (por recurring_id ou descrição+valor)
+      const existing = transactions.find(
+        (t) =>
+          t.recurring_id === rec.id ||
+          (t.recurring_id == null && t.description === rec.description && t.amount === rec.amount && t.type === rec.type),
+      )
+
+      if (!existing) {
+        // Nunca foi criada — cria pela primeira vez
+        insert<Transaction>(KEYS.transactions, {
+          description: rec.description,
+          amount: rec.amount,
+          date: dueDate,
+          due_date: null,
+          type: rec.type,
+          category_id: rec.category_id,
+          account_id: rec.account_id,
+          status: 'pending',
+          recurring_id: rec.id,
+          credit_card_id: null,
+          payment_method: null,
+          observation: null,
+          installment_group_id: null,
+          installment_number: null,
+          installment_total: null,
+          transfer_account_id: null,
+          payment_date: null,
+        })
+      } else {
+        // Já existe — verifica se precisa resetar para o mês atual
+        const existingMonth = new Date(existing.date).getMonth() + 1
+        const existingYear = new Date(existing.date).getFullYear()
+        const isFromCurrentMonth = existingMonth === currentMonth && existingYear === currentYear
+
+        if (!isFromCurrentMonth) {
+          // A transação é de um mês anterior — atualiza data e reseta status para pendente
+          update<Transaction>(KEYS.transactions, existing.id, {
+            date: dueDate,
+            status: 'pending',
+            payment_date: null,
+            recurring_id: rec.id,
+          })
+        }
+      }
     }
     loadAll()
   }, [recurringTransactions, transactions, loadAll])
