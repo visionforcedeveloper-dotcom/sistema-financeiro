@@ -89,7 +89,7 @@ interface DataContextValue {
   deleteCreditCard: (id: string) => void
   getCreditCardUsage: (cardId: string) => CreditCardUsage | null
 
-  addRecurring: (data: Partial<RecurringTransaction>) => void
+  addRecurring: (data: Partial<RecurringTransaction>) => RecurringTransaction
   updateRecurring: (id: string, data: Partial<RecurringTransaction>) => void
   deleteRecurring: (id: string) => void
   generateRecurringTransactions: () => void
