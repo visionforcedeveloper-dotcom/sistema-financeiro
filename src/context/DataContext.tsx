@@ -154,46 +154,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(() => loadAll(), [loadAll])
 
-  // Remove transações duplicadas de recorrentes
+  // Remove transações duplicadas de recorrentes (mesma recurring_id, mantém a mais recente)
   useEffect(() => {
     if (loading) return
     const allTx = getAll<Transaction>(KEYS.transactions)
-    let changed = false
-
-    // 1. Duplicatas com mesmo recurring_id — mantém a mais recente
     const byRecurringId: Record<string, Transaction[]> = {}
     allTx.forEach((t) => {
       if (!t.recurring_id) return
       if (!byRecurringId[t.recurring_id]) byRecurringId[t.recurring_id] = []
       byRecurringId[t.recurring_id].push(t)
     })
+    let changed = false
     Object.values(byRecurringId).forEach((group) => {
       if (group.length <= 1) return
       const sorted = group.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       sorted.slice(1).forEach((t) => { remove(KEYS.transactions, t.id); changed = true })
     })
-
-    // 2. Transações sem recurring_id que têm um recorrente com mesma descrição+valor+tipo
-    // Remove a sem vínculo, mantém a que tem recurring_id (ou a mais recente se ambas sem)
-    const recs = getAll<RecurringTransaction>(KEYS.recurringTransactions)
-    const remaining = getAll<Transaction>(KEYS.transactions)
-    recs.forEach((rec) => {
-      const matches = remaining.filter(
-        (t) => t.type === rec.type && t.description === rec.description && t.amount === rec.amount
-      )
-      if (matches.length <= 1) return
-      // Se tem uma com recurring_id, remove as sem
-      const withLink = matches.filter((t) => t.recurring_id === rec.id)
-      const withoutLink = matches.filter((t) => t.recurring_id !== rec.id)
-      if (withLink.length > 0) {
-        withoutLink.forEach((t) => { remove(KEYS.transactions, t.id); changed = true })
-      } else {
-        // Nenhuma tem link — mantém a mais recente
-        const sorted = matches.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        sorted.slice(1).forEach((t) => { remove(KEYS.transactions, t.id); changed = true })
-      }
-    })
-
     if (changed) loadAll()
   }, [loading]) // eslint-disable-line
 
