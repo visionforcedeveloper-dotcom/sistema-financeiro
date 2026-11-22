@@ -34,6 +34,7 @@ export default function Expenses() {
     markAsUnpaid,
     addRecurring,
     updateRecurring,
+    deleteRecurring,
     getCategoryName,
   } = useData()
 
@@ -250,9 +251,23 @@ export default function Expenses() {
       <ConfirmDialog
         open={deleteId !== null}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => deleteId && deleteTransaction(deleteId)}
+        onConfirm={() => {
+          if (!deleteId) return
+          // Busca a transação para verificar se tem recorrente vinculado
+          const tx = transactions.find((t) => t.id === deleteId)
+          if (tx) {
+            // Remove o recorrente vinculado (por recurring_id ou por descrição+valor)
+            const linked = tx.recurring_id
+              ? recurringTransactions.find((r) => r.id === tx.recurring_id)
+              : recurringTransactions.find(
+                  (r) => r.type === tx.type && r.description === tx.description && r.amount === tx.amount,
+                )
+            if (linked) deleteRecurring(linked.id)
+          }
+          deleteTransaction(deleteId)
+        }}
         title="Excluir despesa"
-        message="Tem certeza que deseja excluir esta despesa?"
+        message="Tem certeza que deseja excluir esta despesa? Se for recorrente, será removida permanentemente."
         confirmLabel="Excluir"
       />
     </div>
