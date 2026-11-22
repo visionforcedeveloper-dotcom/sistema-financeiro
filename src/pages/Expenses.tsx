@@ -146,6 +146,9 @@ export default function Expenses() {
                 >
                   Vencimento <SortIcon field="date" current={sortField} dir={sortDir} />
                 </th>
+                <th className="text-left font-medium px-4 py-3 hidden md:table-cell text-gray-500 dark:text-gray-400">
+                  Término
+                </th>
                 <th
                   className="text-center font-medium px-4 py-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
                   onClick={() => handleSort('status')}
@@ -171,6 +174,26 @@ export default function Expenses() {
                   </td>
                   <td className="px-4 py-3 hidden sm:table-cell text-gray-600 dark:text-gray-400">
                     {formatDate(t.date)}
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell text-gray-500 dark:text-gray-400 text-sm">
+                    {(() => {
+                      if (!t.recurring_id && !t.description) return <span className="text-gray-300 dark:text-gray-700">—</span>
+                      const rec = recurringTransactions.find(
+                        (r) => r.id === t.recurring_id ||
+                          (r.type === t.type && r.description === t.description && r.amount === t.amount)
+                      )
+                      if (!rec) return <span className="text-gray-300 dark:text-gray-700">—</span>
+                      if (!rec.end_date) return (
+                        <span className="text-xs text-purple-500 dark:text-purple-400 flex items-center gap-1">
+                          <Repeat size={11} /> Sem fim
+                        </span>
+                      )
+                      return (
+                        <span className="text-xs text-orange-500 dark:text-orange-400">
+                          até {formatDate(rec.end_date)}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-center">{statusBadge(t.status)}</td>
                   <td className="px-4 py-3">
