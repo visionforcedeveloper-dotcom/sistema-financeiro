@@ -63,12 +63,16 @@ function buildMonthData(
 
   if (!isPast || !hasRealIncome || !hasRealExpense) {
     for (const rec of recurringTransactions) {
-      const recStart = parseISO(rec.start_date)
       const recEnd = rec.end_date ? parseISO(rec.end_date) : null
 
-      if (isAfter(startOfMonth(recStart), monthEnd)) continue
+      // Recorrente já terminou antes deste mês? Pula
       if (recEnd && isBefore(endOfMonth(recEnd), monthStart)) continue
-      if (rec.period === 'annual' && (recStart.getMonth() + 1) !== m) continue
+
+      // Para anual: só conta no mês de início
+      if (rec.period === 'annual') {
+        const recStart = parseISO(rec.start_date)
+        if ((recStart.getMonth() + 1) !== m) continue
+      }
 
       const amount = rec.period === 'weekly' ? rec.amount * 4 : rec.amount
 
