@@ -310,15 +310,11 @@ interface FormProps {
 }
 
 function ExpenseFormModal({ transaction, recurringTransactions = [], onClose, onSave }: FormProps) {
-  // Recorrente vinculado a esta transação (pelo recurring_id ou por descrição+valor)
   const linkedRecurring = transaction
     ? (transaction.recurring_id
         ? recurringTransactions.find((r) => r.id === transaction.recurring_id)
         : recurringTransactions.find(
-            (r) =>
-              r.type === 'expense' &&
-              r.description === transaction.description &&
-              r.amount === transaction.amount,
+            (r) => r.type === 'expense' && r.description === transaction.description && r.amount === transaction.amount,
           ))
     : undefined
 
@@ -327,10 +323,16 @@ function ExpenseFormModal({ transaction, recurringTransactions = [], onClose, on
   const [date, setDate] = useState(transaction?.date || todayISO())
   const [status, setStatus] = useState<TransactionStatus>(transaction?.status || 'pending')
 
-  // Recorrência — pré-preenche se existir recorrente vinculado
+  // Recorrência
   const [isRecurring, setIsRecurring] = useState(!!linkedRecurring)
   const [recurringPeriod, setRecurringPeriod] = useState<RecurringPeriod>(
     (linkedRecurring?.period as RecurringPeriod) || 'monthly',
+  )
+  // Dia do vencimento mensal — usa o due_day do recorrente se existir, senão extrai da data
+  const [dueDay, setDueDay] = useState(
+    linkedRecurring?.due_day
+      ? String(linkedRecurring.due_day)
+      : String(new Date(transaction?.date || todayISO()).getDate()),
   )
   const [recurringEndDate, setRecurringEndDate] = useState(linkedRecurring?.end_date || '')
 
@@ -340,6 +342,9 @@ function ExpenseFormModal({ transaction, recurringTransactions = [], onClose, on
     if (!description || !amount) return
     setSaving(true)
     try {
+      const dueDayInt = Math.max(1, Math.min(31, parseInt(dueDay) || 1))
+
+      // Para transação: usa a data informada
       const txData: Partial<Transaction> = {
         description,
         amount: parseFloat(amount),
@@ -358,7 +363,7 @@ function ExpenseFormModal({ transaction, recurringTransactions = [], onClose, on
         amount: parseFloat(amount),
         type: 'expense',
         period: recurringPeriod,
-        due_day: new Date(date).getDate(),
+        due_day: dueDayInt,
         start_date: linkedRecurring?.start_date || date,
         end_date: recurringEndDate || null,
         category_id: null,
@@ -388,7 +393,7 @@ function ExpenseFormModal({ transaction, recurringTransactions = [], onClose, on
             <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" className="input" />
           </div>
           <div>
-            <label className="label">Data de início</label>
+            <label className="label">Data do lançamento</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
           </div>
         </div>
@@ -396,9 +401,7 @@ function ExpenseFormModal({ transaction, recurringTransactions = [], onClose, on
         {/* ── Toggle Recorrente ── */}
         <div className={cn(
           'rounded-xl border-2 transition-all overflow-hidden',
-          isRecurring
-            ? 'border-purple-300 dark:border-purple-700'
-            : 'border-gray-200 dark:border-gray-700',
+          isRecurring ? 'border-purple-300 dark:border-purple-700' : 'border-gray-200 dark:border-gray-700',
         )}>
           <button
             type="button"
@@ -408,16 +411,14 @@ function ExpenseFormModal({ transaction, recurringTransactions = [], onClose, on
             <div className="flex items-center gap-2.5">
               <div className={cn(
                 'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
-                isRecurring
-                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-400',
+                isRecurring ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-400',
               )}>
                 <Repeat size={16} />
               </div>
               <div className="text-left">
                 <p className="text-sm font-medium">Repetir automaticamente</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {isRecurring ? 'Esta despesa vai se repetir' : 'Lançamento único'}
+                  {isRecurring ? 'Repete todo mês — status reseta para Pendente no início do mês' : 'Lançamento único'}
                 </p>
               </div>
             </div>
@@ -434,17 +435,32 @@ function ExpenseFormModal({ transaction, recurringTransactions = [], onClose, on
 
           {isRecurring && (
             <div className="px-4 pb-4 pt-1 space-y-3 bg-purple-50/50 dark:bg-purple-900/10 border-t border-purple-200 dark:border-purple-800">
-              <div>
-                <label className="label">Periodicidade</label>
-                <select value={recurringPeriod} onChange={(e) => setRecurringPeriod(e.target.value as RecurringPeriod)} className="input">
-                  <option value="monthly">Mensal</option>
-                  <option value="weekly">Semanal</option>
-                  <option value="annual">Anual</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Periodicidade</label>
+                  <select value={recurringPeriod} onChange={(e) => setRecurringPeriod(e.target.value as RecurringPeriod)} className="input">
+                    <option value="monthly">Mensal</option>
+                    <option value="weekly">Semanal</option>
+                    <option value="annual">Anual</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Dia do vencimento</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={dueDay}
+                    onChange={(e) => setDueDay(e.target.value)}
+                    className="input"
+                    placeholder="Ex: 10"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Todo dia {dueDay} do mês</p>
+                </div>
               </div>
               <div>
                 <label className="label">
-                  Data final <span className="text-xs text-gray-400 font-normal">(opcional — quando a despesa deixa de se repetir)</span>
+                  Data final <span className="text-xs text-gray-400 font-normal">(quando para de se repetir)</span>
                 </label>
                 <input type="date" value={recurringEndDate} onChange={(e) => setRecurringEndDate(e.target.value)} className="input" />
                 {recurringEndDate && (
