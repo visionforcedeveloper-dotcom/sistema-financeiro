@@ -42,6 +42,8 @@ function buildMonthData(
   const monthEnd = endOfMonth(new Date(y, m - 1))
 
   const isPast = y < currentYear || (y === currentYear && m < currentMonth)
+  const isCurrent = y === currentYear && m === currentMonth
+  const isFuture = !isPast && !isCurrent
 
   const realIncomeList = transactions.filter((t) => t.type === 'income' && isSameMonth(t.date, m, y))
   const realExpenseList = transactions.filter((t) => t.type === 'expense' && isSameMonth(t.date, m, y))
@@ -52,30 +54,42 @@ function buildMonthData(
   const realIncome = realIncomeList.reduce((s, t) => s + t.amount, 0)
   const realExpense = realExpenseList.reduce((s, t) => s + t.amount, 0)
 
-  // Mês passado sem dados → zero (não inventa projeção)
+  // Mês passado sem dados → zero
   if (isPast && !hasRealIncome && !hasRealExpense) {
     return { income: 0, expense: 0, balance: 0 }
   }
 
-  // Projeta recorrentes apenas para tipos sem dados reais (só presente/futuro)
-  let projIncome = 0
-  let projExpense = 0
-
-  if (!isPast || !hasRealIncome || !hasRealExpense) {
+  // Mês futuro → sempre projeta pelos recorrentes (ignora transações avulsas futuras)
+  if (isFuture) {
+    let projIncome = 0
+    let projExpense = 0
     for (const rec of recurringTransactions) {
       const recEnd = rec.end_date ? parseISO(rec.end_date) : null
-
-      // Recorrente já terminou antes deste mês? Pula
       if (recEnd && isBefore(endOfMonth(recEnd), monthStart)) continue
-
-      // Para anual: só conta no mês de início
       if (rec.period === 'annual') {
         const recStart = parseISO(rec.start_date)
         if ((recStart.getMonth() + 1) !== m) continue
       }
-
       const amount = rec.period === 'weekly' ? rec.amount * 4 : rec.amount
+      if (rec.type === 'income') projIncome += amount
+      if (rec.type === 'expense') projExpense += amount
+    }
+    return { income: projIncome, expense: projExpense, balance: projIncome - projExpense }
+  }
 
+  // Mês atual ou passado com dados → usa dados reais, complementa com recorrentes se necessário
+  let projIncome = 0
+  let projExpense = 0
+
+  if (!hasRealIncome || !hasRealExpense) {
+    for (const rec of recurringTransactions) {
+      const recEnd = rec.end_date ? parseISO(rec.end_date) : null
+      if (recEnd && isBefore(endOfMonth(recEnd), monthStart)) continue
+      if (rec.period === 'annual') {
+        const recStart = parseISO(rec.start_date)
+        if ((recStart.getMonth() + 1) !== m) continue
+      }
+      const amount = rec.period === 'weekly' ? rec.amount * 4 : rec.amount
       if (rec.type === 'income' && !hasRealIncome) projIncome += amount
       if (rec.type === 'expense' && !hasRealExpense) projExpense += amount
     }
