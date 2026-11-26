@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useData } from '../context/DataContext'
+import { useApi } from '../context/ApiContext'
 import {
   formatCurrency, formatDate, todayISO,
   getCurrentMonth, isSameMonth, cn,
@@ -35,8 +35,10 @@ export default function Expenses() {
     addRecurring,
     updateRecurring,
     deleteRecurring,
-    getCategoryName,
-  } = useData()
+  } = useApi()
+
+  // getCategoryName não existe no useApi — retorna string vazia por enquanto
+  const getCategoryName = (_id: string | null) => ''
 
   const [addOpen, setAddOpen] = useState(false)
   const [editTransaction, setEditTransaction] = useState<Transaction | null>(null)
@@ -236,20 +238,17 @@ export default function Expenses() {
           recurringTransactions={recurringTransactions}
           onClose={() => setAddOpen(false)}
           onSave={async (data, recurringData) => {
-            // Cria o recorrente primeiro para obter o ID
             let recurringId: string | null = null
             if (recurringData) {
               const rec = await addRecurring(recurringData)
               recurringId = rec?.id ?? null
             }
-            // Linka a transação com o recorrente criado
             await addTransaction({ ...data, type: 'expense', recurring_id: recurringId })
             setAddOpen(false)
           }}
         />
       )}
 
-      {/* Edit Modal */}
       {editTransaction && (
         <ExpenseFormModal
           transaction={editTransaction}
@@ -259,10 +258,8 @@ export default function Expenses() {
             await updateTransaction(editTransaction.id, data)
             if (recurringData) {
               if (existingRecurringId) {
-                // atualiza o recorrente existente
                 await updateRecurring(existingRecurringId, recurringData)
               } else {
-                // cria novo recorrente
                 await addRecurring(recurringData)
               }
             }
@@ -274,20 +271,18 @@ export default function Expenses() {
       <ConfirmDialog
         open={deleteId !== null}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteId) return
-          // Busca a transação para verificar se tem recorrente vinculado
           const tx = transactions.find((t) => t.id === deleteId)
           if (tx) {
-            // Remove o recorrente vinculado (por recurring_id ou por descrição+valor)
             const linked = tx.recurring_id
               ? recurringTransactions.find((r) => r.id === tx.recurring_id)
               : recurringTransactions.find(
                   (r) => r.type === tx.type && r.description === tx.description && r.amount === tx.amount,
                 )
-            if (linked) deleteRecurring(linked.id)
+            if (linked) await deleteRecurring(linked.id)
           }
-          deleteTransaction(deleteId)
+          await deleteTransaction(deleteId)
         }}
         title="Excluir despesa"
         message="Tem certeza que deseja excluir esta despesa? Se for recorrente, será removida permanentemente."

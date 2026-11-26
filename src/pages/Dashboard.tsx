@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useData } from '../context/DataContext'
+import { useApi } from '../context/ApiContext'
 import {
   formatCurrency, isSameMonth, getCurrentMonth, getMonthNameFull, cn,
 } from '../lib/utils'
@@ -105,9 +106,10 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
   const {
     transactions,
     recurringTransactions,
-    getCategoryName,
     loading,
-  } = useData()
+  } = useApi()
+
+  const { getCategoryName } = useData()
 
   const { month, year: currentYear } = getCurrentMonth()
   const [selectedYear, setSelectedYear] = useState(currentYear)

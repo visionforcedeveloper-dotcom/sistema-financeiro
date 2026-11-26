@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import { DataProvider } from './context/DataContext'
+import { ApiProvider } from './context/ApiContext'
 import Layout from './components/Layout'
 import TransactionModal from './components/TransactionModal'
 
@@ -29,21 +30,23 @@ export default function App() {
   return (
     <ThemeProvider>
       <DataProvider>
-        <Layout onQuickAdd={() => openModal()}>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              <Route path="/"          element={<Dashboard onQuickAdd={openModal} />} />
-              <Route path="/income"    element={<Income />} />
-              <Route path="/expenses"  element={<Expenses />} />
-              <Route path="*"          element={<Dashboard onQuickAdd={openModal} />} />
-            </Routes>
-          </Suspense>
-        </Layout>
-        <TransactionModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          defaultType={defaultType}
-        />
+        <ApiProvider>
+          <Layout onQuickAdd={() => openModal()}>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                <Route path="/"          element={<Dashboard onQuickAdd={openModal} />} />
+                <Route path="/income"    element={<Income />} />
+                <Route path="/expenses"  element={<Expenses />} />
+                <Route path="*"          element={<Dashboard onQuickAdd={openModal} />} />
+              </Routes>
+            </Suspense>
+          </Layout>
+          <TransactionModal
+            open={modalOpen}
+            onClose={() => setModalOpen(false)}
+            defaultType={defaultType}
+          />
+        </ApiProvider>
       </DataProvider>
     </ThemeProvider>
   )
