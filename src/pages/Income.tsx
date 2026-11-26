@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useData } from '../context/DataContext'
+import { useApi } from '../context/ApiContext'
 import {
   formatCurrency, formatDate, todayISO,
   getCurrentMonth, isSameMonth, cn,
@@ -18,8 +19,6 @@ const paymentMethods = ['Dinheiro', 'Pix', 'Débito', 'Crédito', 'Boleto', 'Tra
 export default function Income() {
   const {
     transactions,
-    categories,
-    accounts,
     recurringTransactions,
     addTransaction,
     updateTransaction,
@@ -27,8 +26,10 @@ export default function Income() {
     addRecurring,
     updateRecurring,
     deleteRecurring,
-    getCategoryName,
-  } = useData()
+  } = useApi()
+
+  // categories e accounts ainda vêm do DataContext (localStorage)
+  const { categories, accounts, getCategoryName } = useData()
 
   const [filterCategory, setFilterCategory] = useState('')
   const [addOpen, setAddOpen] = useState(false)

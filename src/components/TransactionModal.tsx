@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Modal from './ui/Modal'
 import { useData } from '../context/DataContext'
+import { useApi } from '../context/ApiContext'
 import { todayISO } from '../lib/utils'
 import type { TransactionType } from '../types'
 
@@ -13,7 +14,8 @@ interface TransactionModalProps {
 const paymentMethods = ['Dinheiro', 'Pix', 'Débito', 'Crédito', 'Boleto', 'Transferência']
 
 export default function TransactionModal({ open, onClose, defaultType }: TransactionModalProps) {
-  const { accounts, categories, creditCards, addTransaction, transferMoney } = useData()
+  const { accounts, categories, creditCards } = useData()
+  const { addTransaction } = useApi()
 
   const [type, setType] = useState<TransactionType>(defaultType || 'expense')
   const [description, setDescription] = useState('')
@@ -54,7 +56,16 @@ export default function TransactionModal({ open, onClose, defaultType }: Transac
     try {
       if (type === 'transfer') {
         if (!accountId || !transferTo) return
-        await transferMoney(accountId, transferTo, parseFloat(amount), date, description)
+        await addTransaction({
+          description,
+          amount: parseFloat(amount),
+          date,
+          type: 'transfer',
+          status: 'paid',
+          transfer_account_id: transferTo,
+          account_id: accountId || null,
+          observation: observation || null,
+        })
       } else {
         await addTransaction({
           description,

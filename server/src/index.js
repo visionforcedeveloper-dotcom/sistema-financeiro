@@ -11,9 +11,16 @@ const PORT = process.env.PORT || 3001
 
 // Middlewares
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: (origin, callback) => {
+    // Permite localhost em qualquer porta e o domínio do Vercel
+    if (!origin || origin.includes('localhost') || origin.includes('vercel.app')) {
+      callback(null, true)
+    } else {
+      callback(new Error('Não permitido pelo CORS'))
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }))
 app.use(express.json())
 

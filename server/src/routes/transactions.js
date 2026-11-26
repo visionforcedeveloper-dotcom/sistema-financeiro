@@ -13,7 +13,9 @@ router.get('/', async (req, res) => {
       'SELECT * FROM transactions WHERE user_id = $1 ORDER BY date DESC, created_at DESC',
       [req.userId]
     )
-    res.json(result.rows)
+    // PostgreSQL retorna NUMERIC como string — converte para número
+    const rows = result.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }))
+    res.json(rows)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -42,7 +44,7 @@ router.post('/', async (req, res) => {
        installment_total ?? null, transfer_account_id ?? null,
        observation ?? null]
     )
-    res.status(201).json(result.rows[0])
+    res.status(201).json({ ...result.rows[0], amount: parseFloat(result.rows[0].amount) })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -66,7 +68,7 @@ router.put('/:id', async (req, res) => {
       values
     )
     if (result.rowCount === 0) return res.status(404).json({ error: 'Não encontrado' })
-    res.json(result.rows[0])
+    res.json({ ...result.rows[0], amount: parseFloat(result.rows[0].amount) })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

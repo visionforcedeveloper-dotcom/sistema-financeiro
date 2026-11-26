@@ -12,7 +12,8 @@ router.get('/', async (req, res) => {
       'SELECT * FROM recurring_transactions WHERE user_id = $1 ORDER BY created_at DESC',
       [req.userId]
     )
-    res.json(result.rows)
+    const rows = result.rows.map(r => ({ ...r, amount: parseFloat(r.amount) }))
+    res.json(rows)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -30,7 +31,7 @@ router.post('/', async (req, res) => {
       [req.userId, description, amount, type, period ?? 'monthly',
        due_day ?? 1, start_date, end_date ?? null]
     )
-    res.status(201).json(result.rows[0])
+    res.status(201).json({ ...result.rows[0], amount: parseFloat(result.rows[0].amount) })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
