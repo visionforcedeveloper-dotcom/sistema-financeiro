@@ -1,9 +1,16 @@
-// Cliente HTTP para a API Node.js + PostgreSQL
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
+function getToken(): string | null {
+  return localStorage.getItem('fp_token')
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken()
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...options,
   })
   if (!res.ok) {
@@ -13,7 +20,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
-// ── Transactions ─────────────────────────────────────
 export const api = {
   transactions: {
     list: () => request<any[]>('/api/transactions'),

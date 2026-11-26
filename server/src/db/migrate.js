@@ -8,8 +8,17 @@ async function migrate() {
     await client.query(`
       CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
       CREATE TABLE IF NOT EXISTS transactions (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         description TEXT NOT NULL,
         amount NUMERIC(14,2) NOT NULL,
         date DATE NOT NULL,
@@ -27,6 +36,7 @@ async function migrate() {
 
       CREATE TABLE IF NOT EXISTS recurring_transactions (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         description TEXT NOT NULL,
         amount NUMERIC(14,2) NOT NULL,
         type TEXT NOT NULL CHECK (type IN ('income','expense')),
@@ -37,10 +47,11 @@ async function migrate() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
+      CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
       CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
       CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
       CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
-      CREATE INDEX IF NOT EXISTS idx_transactions_recurring ON transactions(recurring_id);
+      CREATE INDEX IF NOT EXISTS idx_recurring_user ON recurring_transactions(user_id);
     `)
 
     console.log('✅ Migrations concluídas!')

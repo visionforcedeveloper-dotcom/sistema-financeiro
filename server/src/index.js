@@ -4,6 +4,7 @@ require('dotenv').config()
 
 const transactionsRouter = require('./routes/transactions')
 const recurringRouter = require('./routes/recurring')
+const authRouter = require('./routes/auth')
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -22,6 +23,7 @@ app.get('/health', (req, res) => {
 })
 
 // Routes
+app.use('/api/auth', authRouter)
 app.use('/api/transactions', transactionsRouter)
 app.use('/api/recurring', recurringRouter)
 

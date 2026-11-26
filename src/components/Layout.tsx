@@ -9,8 +9,10 @@ import {
   Menu,
   X,
   Plus,
+  LogOut,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
+import { useAuth } from '../context/AuthContext'
 import { cn } from '../lib/utils'
 
 const navItems = [
@@ -26,6 +28,7 @@ interface LayoutProps {
 
 export default function Layout({ children, onQuickAdd }: LayoutProps) {
   const { theme, toggleTheme } = useTheme()
+  const { user, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
@@ -60,13 +63,25 @@ export default function Layout({ children, onQuickAdd }: LayoutProps) {
           ))}
         </nav>
 
-        <div className="p-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="p-3 border-t border-gray-100 dark:border-gray-800 space-y-1">
+          {user && (
+            <div className="px-3 py-2">
+              <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{user.name}</p>
+              <p className="text-xs text-gray-400 truncate">{user.email}</p>
+            </div>
+          )}
           <button
             onClick={toggleTheme}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
           >
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             {theme === 'light' ? 'Modo escuro' : 'Modo claro'}
+          </button>
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+          >
+            <LogOut size={18} /> Sair
           </button>
         </div>
       </aside>

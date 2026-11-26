@@ -1,12 +1,17 @@
 const express = require('express')
 const router = express.Router()
 const pool = require('../db/pool')
+const auth = require('../middleware/auth')
+
+// Todas as rotas exigem autenticação
+router.use(auth)
 
 // GET /api/transactions
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM transactions ORDER BY date DESC, created_at DESC'
+      'SELECT * FROM transactions WHERE user_id = $1 ORDER BY date DESC, created_at DESC',
+      [req.userId]
     )
     res.json(result.rows)
   } catch (err) {
@@ -26,12 +31,12 @@ router.post('/', async (req, res) => {
   try {
     const result = await pool.query(
       `INSERT INTO transactions
-        (description, amount, date, type, status, payment_date, recurring_id,
+        (user_id, description, amount, date, type, status, payment_date, recurring_id,
          installment_group_id, installment_number, installment_total,
          transfer_account_id, observation)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
-      [description, amount, date, type, status ?? 'pending',
+      [req.userId, description, amount, date, type, status ?? 'pending',
        payment_date ?? null, recurring_id ?? null,
        installment_group_id ?? null, installment_number ?? null,
        installment_total ?? null, transfer_account_id ?? null,
@@ -51,11 +56,13 @@ router.put('/:id', async (req, res) => {
   if (keys.length === 0) return res.status(400).json({ error: 'Nenhum campo enviado' })
 
   const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ')
-  const values = [...Object.values(fields), id]
+  const values = [...Object.values(fields), id, req.userId]
 
   try {
     const result = await pool.query(
-      `UPDATE transactions SET ${setClause} WHERE id = $${keys.length + 1} RETURNING *`,
+      `UPDATE transactions SET ${setClause}
+       WHERE id = $${keys.length + 1} AND user_id = $${keys.length + 2}
+       RETURNING *`,
       values
     )
     if (result.rowCount === 0) return res.status(404).json({ error: 'Não encontrado' })
@@ -69,7 +76,10 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { id } = req.params
   try {
-    const result = await pool.query('DELETE FROM transactions WHERE id = $1', [id])
+    const result = await pool.query(
+      'DELETE FROM transactions WHERE id = $1 AND user_id = $2',
+      [id, req.userId]
+    )
     if (result.rowCount === 0) return res.status(404).json({ error: 'Não encontrado' })
     res.json({ success: true })
   } catch (err) {
