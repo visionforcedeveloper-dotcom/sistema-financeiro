@@ -8,7 +8,6 @@ import {
   Sun,
   Menu,
   X,
-  Plus,
   LogOut,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
@@ -140,15 +139,6 @@ export default function Layout({ children, onQuickAdd }: LayoutProps) {
           {children}
         </main>
       </div>
-
-      {/* Floating Add Button */}
-      <button
-        onClick={onQuickAdd}
-        className="fixed bottom-20 lg:bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-brand-600 text-white shadow-lg flex items-center justify-center hover:bg-brand-700 active:scale-95 transition-all"
-        title="Novo lançamento"
-      >
-        <Plus size={26} />
-      </button>
 
       {/* Bottom Mobile Nav */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 h-16 flex items-center justify-around px-2">

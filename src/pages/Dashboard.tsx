@@ -12,6 +12,7 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, ReferenceLine,
+  AreaChart, Area,
 } from 'recharts'
 import EmptyState from '../components/EmptyState'
 import {
@@ -269,7 +270,7 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="text-sm font-semibold bg-transparent border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="text-sm font-semibold bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   {availableYears.map(y => (
                     <option key={y} value={y}>{y}</option>
@@ -418,40 +419,102 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
 
           {/* ── Gráfico anual ── */}
           <div className="card">
-            <h3 className="font-semibold text-base mb-4">Receita × Despesas × Sobra — {selectedYear}</h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={annualData} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100 dark:stroke-gray-800" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} />
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-semibold text-base">Receita × Despesas × Sobra — {selectedYear}</h3>
+              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />Receita</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />Despesas</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-brand-500 inline-block" />Sobra</span>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={annualData} barGap={3} barCategoryGap="25%">
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `R$${(v/1000).toFixed(0)}k`}
+                  width={48}
+                />
                 <Tooltip
                   formatter={(v: number) => formatCurrency(v)}
-                  contentStyle={{ borderRadius: '12px', fontSize: '12px', border: '1px solid #e5e7eb' }}
+                  contentStyle={{
+                    backgroundColor: '#111827',
+                    border: '1px solid #374151',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    color: '#f9fafb',
+                  }}
+                  labelStyle={{ color: '#9ca3af', marginBottom: 4 }}
+                  cursor={{ fill: 'rgba(255,255,255,0.03)' }}
                 />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
-                <Bar dataKey="income" name="Receita" fill="#16a34a" radius={[4,4,0,0]} />
-                <Bar dataKey="expense" name="Despesas" fill="#dc2626" radius={[4,4,0,0]} />
-                <Bar dataKey="balance" name="Sobra" fill="#5163f6" radius={[4,4,0,0]} />
+                <ReferenceLine y={0} stroke="#374151" />
+                <Bar dataKey="income" name="Receita" fill="#22c55e" radius={[6,6,0,0]} />
+                <Bar dataKey="expense" name="Despesas" fill="#ef4444" radius={[6,6,0,0]} />
+                <Bar dataKey="balance" name="Sobra" fill="#6366f1" radius={[6,6,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
           {/* ── Gráfico saldo acumulado ── */}
           <div className="card">
-            <h3 className="font-semibold text-base mb-4">Saldo Acumulado — {selectedYear}</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={annualData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100 dark:stroke-gray-800" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip
-                  formatter={(v: number) => formatCurrency(v)}
-                  contentStyle={{ borderRadius: '12px', fontSize: '12px', border: '1px solid #e5e7eb' }}
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-semibold text-base">Saldo Acumulado — {selectedYear}</h3>
+              <span className="text-xs text-gray-400">evolução mês a mês</span>
+            </div>
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={annualData}>
+                <defs>
+                  <linearGradient id="gradAccum" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  axisLine={false}
+                  tickLine={false}
                 />
-                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
-                <Bar dataKey="accumulated" name="Saldo acumulado" fill="#5163f6" radius={[4,4,0,0]} />
-              </BarChart>
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `R$${(v/1000).toFixed(0)}k`}
+                  width={48}
+                />
+                <Tooltip
+                  formatter={(v: number) => [formatCurrency(v), 'Saldo acumulado']}
+                  contentStyle={{
+                    backgroundColor: '#111827',
+                    border: '1px solid #374151',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    color: '#f9fafb',
+                  }}
+                  labelStyle={{ color: '#9ca3af', marginBottom: 4 }}
+                  cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                />
+                <ReferenceLine y={0} stroke="#374151" />
+                <Area
+                  type="monotone"
+                  dataKey="accumulated"
+                  name="Saldo acumulado"
+                  stroke="#6366f1"
+                  strokeWidth={2.5}
+                  fill="url(#gradAccum)"
+                  dot={{ fill: '#6366f1', strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
 
