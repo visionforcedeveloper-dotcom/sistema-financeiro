@@ -114,6 +114,7 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
 
   const { month, year: currentYear } = getCurrentMonth()
   const [selectedYear, setSelectedYear] = useState(currentYear)
+  const [chartPeriod, setChartPeriod] = useState<'year' | 3 | 6 | 12>('year')
 
   const availableYears = Array.from({ length: 7 }, (_, i) => currentYear - 3 + i)
 
@@ -164,6 +165,31 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
     })
     return rows
   }, [transactions, recurringTransactions, month, currentYear, selectedYear])
+
+  // ── Dados dos gráficos — respeitam o período selecionado ───────────────
+  const chartData = useMemo(() => {
+    if (chartPeriod === 'year') return annualData
+
+    // Próximos N meses a partir do mês atual
+    const months = chartPeriod as number
+    return Array.from({ length: months }, (_, i) => {
+      const d = new Date(currentYear, (new Date().getMonth()) + i, 1)
+      const m = d.getMonth() + 1
+      const y = d.getFullYear()
+      const data = buildMonthData(m, y, transactions, recurringTransactions, month, currentYear)
+      return {
+        month: format(d, 'MMM/yy', { locale: ptBR }).replace('.', ''),
+        m, y,
+        income: data.income,
+        expense: data.expense,
+        balance: data.balance,
+        accumulated: 0, // não usado nesta view
+        isCurrent: m === month && y === currentYear,
+        isFuture: y > currentYear || (y === currentYear && m > month),
+        isPast: y < currentYear || (y === currentYear && m < month),
+      }
+    })
+  }, [annualData, chartPeriod, transactions, recurringTransactions, month, currentYear])
 
   // ── Últimas movimentações ──────────────────────────────────────────────
   const recentTransactions = transactions.slice(0, 5)
@@ -419,16 +445,47 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
 
           {/* ── Gráfico anual ── */}
           <div className="card">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-base">Receita × Despesas × Sobra — {selectedYear}</h3>
-              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />Receita</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />Despesas</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-brand-500 inline-block" />Sobra</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+              <h3 className="font-semibold text-base">Receita × Despesas × Sobra</h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Seletor de período */}
+                <div className="flex rounded-lg bg-gray-100 dark:bg-gray-800 p-0.5 text-xs font-medium">
+                  {([
+                    { value: 'year', label: `Ano ${selectedYear}` },
+                    { value: 3, label: '3 meses' },
+                    { value: 6, label: '6 meses' },
+                    { value: 12, label: '12 meses' },
+                  ] as { value: 'year' | 3 | 6 | 12; label: string }[]).map((p) => (
+                    <button
+                      key={String(p.value)}
+                      onClick={() => setChartPeriod(p.value)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-md transition-all',
+                        chartPeriod === p.value
+                          ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white'
+                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200',
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                {chartPeriod === 'year' && (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setSelectedYear(y => y - 1)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">‹</button>
+                    <span className="text-sm font-semibold w-10 text-center">{selectedYear}</span>
+                    <button onClick={() => setSelectedYear(y => y + 1)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">›</button>
+                  </div>
+                )}
+                <div className="hidden sm:flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />Receita</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />Despesas</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-brand-500 inline-block" />Sobra</span>
+                </div>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={annualData} barGap={3} barCategoryGap="25%">
+              <BarChart data={chartData} barGap={3} barCategoryGap="25%">
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
                 <XAxis
                   dataKey="month"
@@ -463,18 +520,25 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
             </ResponsiveContainer>
           </div>
 
-          {/* ── Gráfico saldo acumulado ── */}
+          {/* ── Gráfico gastos vs sobra ── */}
           <div className="card">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-base">Saldo Acumulado — {selectedYear}</h3>
-              <span className="text-xs text-gray-400">evolução mês a mês</span>
+              <h3 className="font-semibold text-base">Gastos × Sobra</h3>
+              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />Gastos</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />Sobra</span>
+              </div>
             </div>
             <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={annualData}>
+              <AreaChart data={chartData}>
                 <defs>
-                  <linearGradient id="gradAccum" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  <linearGradient id="gradExpense" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gradBalance" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
@@ -492,7 +556,7 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
                   width={48}
                 />
                 <Tooltip
-                  formatter={(v: number) => [formatCurrency(v), 'Saldo acumulado']}
+                  formatter={(v: number, name: string) => [formatCurrency(v), name]}
                   contentStyle={{
                     backgroundColor: '#111827',
                     border: '1px solid #374151',
@@ -501,18 +565,28 @@ export default function Dashboard({ onQuickAdd }: DashboardProps) {
                     color: '#f9fafb',
                   }}
                   labelStyle={{ color: '#9ca3af', marginBottom: 4 }}
-                  cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  cursor={{ stroke: '#374151', strokeWidth: 1, strokeDasharray: '4 4' }}
                 />
                 <ReferenceLine y={0} stroke="#374151" />
                 <Area
                   type="monotone"
-                  dataKey="accumulated"
-                  name="Saldo acumulado"
-                  stroke="#6366f1"
-                  strokeWidth={2.5}
-                  fill="url(#gradAccum)"
-                  dot={{ fill: '#6366f1', strokeWidth: 0, r: 4 }}
-                  activeDot={{ r: 6, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
+                  dataKey="expense"
+                  name="Gastos"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  fill="url(#gradExpense)"
+                  dot={{ fill: '#ef4444', strokeWidth: 0, r: 3 }}
+                  activeDot={{ r: 5, fill: '#ef4444', stroke: '#fff', strokeWidth: 2 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="balance"
+                  name="Sobra"
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                  fill="url(#gradBalance)"
+                  dot={{ fill: '#22c55e', strokeWidth: 0, r: 3 }}
+                  activeDot={{ r: 5, fill: '#22c55e', stroke: '#fff', strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
